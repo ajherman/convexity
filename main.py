@@ -59,7 +59,7 @@ model = HopfieldEnergy(input_size, hidden1_size, hidden2_size, output_size, beta
 
 print("beta: ",beta)
 print("learning_rate: ",learning_rate)
-
+error = []
 for itr in range(n_iters):
     energies = []  # List to store the energy values
 
@@ -96,6 +96,7 @@ for itr in range(n_iters):
         print("Output: ",y_free)
         print("Error: ",(y_free-target).pow(2).sum())
 
+    error.append((y_free-target).pow(2).sum())
     # if itr>5:
     #     assert(0)
 
@@ -135,7 +136,7 @@ for itr in range(n_iters):
     model.b2.weight.data += learning_rate * b2_update
     model.b3.weight.data += learning_rate * b3_update
 
-    if itr%50==0:
+    if itr%100==0:
         # Plot the energies
         plt.plot(energies,label=str(itr))
         plt.xlabel('Step')
@@ -143,5 +144,14 @@ for itr in range(n_iters):
         plt.title('Energy vs. Step')
         plt.legend()
         plt.savefig('energy_vs_step.png')
+
+        # Plot the error
+        plt.figure()
+        plt.plot(error)
+        plt.xlabel('Iteration')
+        plt.ylabel('Error')
+        plt.title('Error vs. Iteration')
+        plt.savefig('error_vs_iteration.png')
+        plt.close()
             
         
