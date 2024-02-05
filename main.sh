@@ -1,4 +1,11 @@
-#!/bin/bash
+#!/bin/bash -l
+
+#SBATCH --job-name=main
+#SBATCH --time 10:00:00
+#SBATCH -N 8
+#SBATCH -p shared-gpu
+#module load miniconda3
+#source activate /vast/home/ajherman/miniconda3/envs/pytorch
 
 learning_rates=(0.5 1.0 2.0 4.0 8.0 16.0) 
 betas=(0.1 0.2 0.4 0.8 1.6 3.2 6.4 12.8)
