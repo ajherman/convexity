@@ -24,6 +24,8 @@ parser.add_argument("--learning-rate", type=float, default=20.0, help="Learning 
 parser.add_argument("--beta", type=float, default=4.0, help="Beta value for weight updates")
 parser.add_argument("--batch-dim", type=int, default=7, help="Batch dimension")
 parser.add_argument("--n-iters", type=int, default=1000, help="Number of iterations for optimization")
+parser.add_argument("--seed", type=int, default=0, help="Random seed")
+parser.add_argument("--init", type=str, default="random", help="Initialization method for weights")
 args = parser.parse_args()
 
 input_size = args.input_size
@@ -49,14 +51,10 @@ for idx in range(batch_dim):
 # Define the optimizer
 
 # For weight updates
-# update = HopfieldUpdate(beta=beta)
-
-
 model = HopfieldEnergy(input_size, hidden1_size, hidden2_size, output_size, beta=beta)
 
 
 # Optimization loop
-
 print("beta: ",beta)
 print("learning_rate: ",learning_rate)
 error = []
@@ -64,13 +62,17 @@ for itr in range(n_iters):
     energies = []  # List to store the energy values
 
     # Initialize internal state variables
-    # h1 = torch.zeros(batch_dim, hidden1_size, requires_grad=True)
-    # h2 = torch.zeros(batch_dim, hidden2_size, requires_grad=True)
-    # y = torch.zeros(batch_dim, output_size, requires_grad=True)
+    if args.init == "zeros":
+        h1 = torch.zeros(batch_dim, hidden1_size, requires_grad=True)
+        h2 = torch.zeros(batch_dim, hidden2_size, requires_grad=True)
+        y = torch.zeros(batch_dim, output_size, requires_grad=True)
+    elif args.init == "random":
+        h1 = torch.rand(batch_dim, hidden1_size, requires_grad=True)
+        h2 = torch.rand(batch_dim, hidden2_size, requires_grad=True)
+        y = torch.rand(batch_dim, output_size, requires_grad=True)
+    else:
+        raise ValueError("Invalid initialization method")
 
-    h1 = torch.rand(batch_dim, hidden1_size, requires_grad=True)
-    h2 = torch.rand(batch_dim, hidden2_size, requires_grad=True)
-    y = torch.rand(batch_dim, output_size, requires_grad=True)
     optimizer = optim.SGD([h1, h2, y], lr=0.1)
 
     for step in range(free_steps):
@@ -92,13 +94,11 @@ for itr in range(n_iters):
     h2_free = h2.detach().clone()
     y_free = y.detach().clone()
 
-    if itr == n_iters-1:
+    if (itr+1)%(n_iters//20) == 0:
         print("Output: ",y_free)
         print("Error: ",(y_free-target).pow(2).sum())
 
     error.append((y_free-target).pow(2).sum())
-    # if itr>5:
-    #     assert(0)
 
     for step in range(nudge_steps):
         optimizer.zero_grad()
@@ -136,22 +136,22 @@ for itr in range(n_iters):
     model.b2.weight.data += learning_rate * b2_update
     model.b3.weight.data += learning_rate * b3_update
 
-    if itr%100==0:
-        # Plot the energies
-        plt.plot(energies,label=str(itr))
-        plt.xlabel('Step')
-        plt.ylabel('Energy')
-        plt.title('Energy vs. Step')
-        plt.legend()
-        plt.savefig('energy_vs_step.png')
+    # if itr%100==0:
+    #     # Plot the energies
+    #     plt.plot(energies,label=str(itr))
+    #     plt.xlabel('Step')
+    #     plt.ylabel('Energy')
+    #     plt.title('Energy vs. Step')
+    #     plt.legend()
+    #     plt.savefig('energy_vs_step.png')
 
-        # Plot the error
-        plt.figure()
-        plt.plot(error)
-        plt.xlabel('Iteration')
-        plt.ylabel('Error')
-        plt.title('Error vs. Iteration')
-        plt.savefig('error_vs_iteration.png')
-        plt.close()
+    #     # Plot the error
+    #     plt.figure()
+    #     plt.plot(error)
+    #     plt.xlabel('Iteration')
+    #     plt.ylabel('Error')
+    #     plt.title('Error vs. Iteration\nbeta: '+str(beta)+'\nlearning_rate: '+str(learning_rate)+'\nError: '+str(error[-1]))
+    #     plt.savefig('error_vs_iteration_beta_'+str(beta)+'_lr_'+str(learning_rate)+'.png')
+    #     plt.close()
             
         
