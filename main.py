@@ -95,7 +95,7 @@ for itr in range(n_iters):
     y_free = y.detach().clone()
 
     if (itr+1)%(n_iters//20) == 0:
-        print("Output: ",y_free)
+        # print("Output: ",y_free)
         print("Error: ",(y_free-target).pow(2).sum())
 
     error.append((y_free-target).pow(2).sum())
