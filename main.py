@@ -5,28 +5,30 @@ from utils import HopfieldEnergy, HopfieldUpdate
 import torch
 import argparse
 import matplotlib.pyplot as plt
-# import torchvision
-# import torchvision.transforms as transforms
-
-# # Load the MNIST dataset
-# transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
-# trainset = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-# trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
+import torchvision
+import torchvision.transforms as transforms
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input-size", type=int, default=50, help="Size of the input")
 parser.add_argument("--hidden1-size", type=int, default=100, help="Size of the first hidden layer")
 parser.add_argument("--hidden2-size", type=int, default=100, help="Size of the second hidden layer")
-parser.add_argument("--output-size", type=int, default=7, help="Size of the output")
+parser.add_argument("--output-size", type=int, default=15, help="Size of the output")
 parser.add_argument("--free-steps", type=int, default=40, help="Number of free optimization steps")
 parser.add_argument("--nudge-steps", type=int, default=5, help="Number of nudge optimization steps")
-parser.add_argument("--learning-rate", type=float, default=20.0, help="Learning rate for optimization")
+parser.add_argument("--learning-rate", type=float, default=15.0, help="Learning rate for optimization")
 parser.add_argument("--beta", type=float, default=4.0, help="Beta value for weight updates")
-parser.add_argument("--batch-dim", type=int, default=7, help="Batch dimension")
-parser.add_argument("--n-iters", type=int, default=1000, help="Number of iterations for optimization")
+parser.add_argument("--batch-dim", type=int, default=15, help="Batch dimension")
+parser.add_argument("--n-iters", type=int, default=3000, help="Number of iterations for optimization")
 parser.add_argument("--seed", type=int, default=0, help="Random seed")
 parser.add_argument("--init", type=str, default="random", help="Initialization method for weights")
+parser.add_argument("--dataset", type=str, default="mnist", help="Dataset to use")
 args = parser.parse_args()
+
+if args.dataset == "mnist":
+    # Load the MNIST dataset
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
+    trainset = torchvision.datasets.MNIST(root='~/datasets', train=True, download=True, transform=transform)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
 
 input_size = args.input_size
 hidden1_size = args.hidden1_size
@@ -58,6 +60,12 @@ model = HopfieldEnergy(input_size, hidden1_size, hidden2_size, output_size, beta
 print("beta: ",beta)
 print("learning_rate: ",learning_rate)
 error = []
+
+# for itr,batch in enumerate(trainloader):
+#     data = batch[0]
+#     target = torch.nn.functional.one_hot(batch[1], num_classes=10)
+
+
 for itr in range(n_iters):
     energies = []  # List to store the energy values
 
