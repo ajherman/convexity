@@ -8,9 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import torchvision
 import torchvision.transforms as transforms
-from sklearn.manifold import TSNE
 import numpy as np
-from sklearn.manifold import TSNE
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input-size", type=int, default=50, help="Size of the input")
@@ -233,31 +231,33 @@ y_free = y.detach().clone()
 
 # print(y_free)
 
-# t-SNE plot to visualize clusters in h1_free
-colors = [t[i % batch_dim] for i in range(batch_dim * n_samples)]  # Example color vector
-cmap = cm.get_cmap('viridis')
-s, alpha = 2, 0.02
+# # t-SNE plot to visualize clusters in h1_free
+# from sklearn.manifold import TSNE
 
-X_embedded_h1 = TSNE(n_components=2).fit_transform(h1_free.numpy())
-plt.subplot(1, 3, 1)
-plt.scatter(X_embedded_h1[:, 0], X_embedded_h1[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-plt.title('hidden 1')
-plt.gca().set_aspect('equal')
+# colors = [t[i % batch_dim] for i in range(batch_dim * n_samples)]  # Example color vector
+# cmap = cm.get_cmap('viridis')
+# s, alpha = 2, 0.02
 
-# t-SNE plot to visualize clusters in h2_free
-X_embedded_h2 = TSNE(n_components=2).fit_transform(h2_free.numpy())
-plt.subplot(1, 3, 2)
-plt.scatter(X_embedded_h2[:, 0], X_embedded_h2[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-plt.title('hidden 2')
-plt.gca().set_aspect('equal')
+# X_embedded_h1 = TSNE(n_components=2).fit_transform(h1_free.numpy())
+# plt.subplot(1, 3, 1)
+# plt.scatter(X_embedded_h1[:, 0], X_embedded_h1[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+# plt.title('hidden 1')
+# plt.gca().set_aspect('equal')
 
-# t-SNE plot to visualize clusters in y_free
-X_embedded_y = TSNE(n_components=2).fit_transform(y_free.numpy())
-plt.subplot(1, 3, 3)
-plt.scatter(X_embedded_y[:, 0], X_embedded_y[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-plt.title('output')
-plt.gca().set_aspect('equal')
+# # t-SNE plot to visualize clusters in h2_free
+# X_embedded_h2 = TSNE(n_components=2).fit_transform(h2_free.numpy())
+# plt.subplot(1, 3, 2)
+# plt.scatter(X_embedded_h2[:, 0], X_embedded_h2[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+# plt.title('hidden 2')
+# plt.gca().set_aspect('equal')
 
-plt.tight_layout()
-plt.figure(figsize=(10, 6))  # Adjust the figure size
-plt.savefig('clusters.png')
+# # t-SNE plot to visualize clusters in y_free
+# X_embedded_y = TSNE(n_components=2).fit_transform(y_free.numpy())
+# plt.subplot(1, 3, 3)
+# plt.scatter(X_embedded_y[:, 0], X_embedded_y[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+# plt.title('output')
+# plt.gca().set_aspect('equal')
+
+# plt.tight_layout()
+# plt.figure(figsize=(10, 6))  # Adjust the figure size
+# plt.savefig('clusters.png')
