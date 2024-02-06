@@ -16,7 +16,7 @@ for lr in "${learning_rates[@]}"; do
 for mr in "${mr[@]}"; do
 for l in "${lam[@]}"; do
         name="lr_${lr}_beta_${beta}"
-        srun -N 1 -n 1 -c 6 -o $name.out --open-mode=append ./main_wrapper.sh  --learning-rate $lr --beta $beta --mr $mr --lam $l --output-size 10 --hidden1-size 200 --hidden2-size 200 --batch-dim 100 --init zeros --n-iters 2000 &
+        srun -N 1 -n 1 -c 6 -o $name.out --open-mode=append ./main_wrapper.sh  --learning-rate $lr --beta $beta --mr $mr --lam $l --input-size 784 --output-size 10 --hidden1-size 200 --hidden2-size 200 --batch-dim 100 --init zeros --n-iters 2000 &
         # python3 -u main.py --learning-rate $lr --beta $beta --input-size 784 --output-size 10 --batch-dim 50 --init random --n-iters 3000 >> results.txt 
 done
 done
