@@ -131,14 +131,14 @@ for itr in range(n_iters): # Random
     y_free = y.detach().clone()
 
 
-    if (itr+1)%(n_iters//10) == 0:
+    if (itr+1)%(n_iters//20) == 0:
         print("Iteration: ",itr+1)
         # print("Output: ",y_free)
         print("Error: ",(y_free-target).pow(2).sum())
         prediction = torch.argmax(y_free, dim=1)
         accuracy = torch.mean((prediction==t).float())
-        if accuracy < 0.2:
-            assert(0)   # Kill if not learning
+        # if accuracy < 0.2:
+        #     assert(0)   # Kill if not learning
         print("Accuracy: ",accuracy)
 
     error.append((y_free-target).pow(2).sum())
