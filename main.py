@@ -5,8 +5,12 @@ from utils import HopfieldEnergy, HopfieldUpdate
 import torch
 import argparse
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import torchvision
 import torchvision.transforms as transforms
+from sklearn.manifold import TSNE
+import numpy as np
+from sklearn.manifold import TSNE
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input-size", type=int, default=50, help="Size of the input")
@@ -15,20 +19,16 @@ parser.add_argument("--hidden2-size", type=int, default=100, help="Size of the s
 parser.add_argument("--output-size", type=int, default=15, help="Size of the output")
 parser.add_argument("--free-steps", type=int, default=40, help="Number of free optimization steps")
 parser.add_argument("--nudge-steps", type=int, default=5, help="Number of nudge optimization steps")
-parser.add_argument("--learning-rate", type=float, default=15.0, help="Learning rate for optimization")
-parser.add_argument("--beta", type=float, default=4.0, help="Beta value for weight updates")
+parser.add_argument("--learning-rate", type=float, default=1.0, help="Learning rate for optimization")
+parser.add_argument("--beta", type=float, default=1.0, help="Beta value for weight updates")
 parser.add_argument("--batch-dim", type=int, default=15, help="Batch dimension")
 parser.add_argument("--n-iters", type=int, default=3000, help="Number of iterations for optimization")
 parser.add_argument("--seed", type=int, default=0, help="Random seed")
 parser.add_argument("--init", type=str, default="random", help="Initialization method for weights")
 parser.add_argument("--dataset", type=str, default="mnist", help="Dataset to use")
+parser.add_argument("--mr", type=float, default=0.1, help="Energy minimization rate")
 args = parser.parse_args()
 
-if args.dataset == "mnist":
-    # Load the MNIST dataset
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
-    trainset = torchvision.datasets.MNIST(root='~/datasets', train=True, download=True, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
 
 input_size = args.input_size
 hidden1_size = args.hidden1_size
@@ -36,19 +36,34 @@ hidden2_size = args.hidden2_size
 output_size = args.output_size
 free_steps = args.free_steps
 nudge_steps = args.nudge_steps
-learning_rate = args.learning_rate
-beta = args.beta
+learning_rate = args.learning_rate # 1 - 200
+beta = args.beta # 1-40
 batch_dim = args.batch_dim
 n_iters = args.n_iters
+mr = args.mr #0.1
+
+if args.dataset == "mnist":
+    # Load the MNIST dataset
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
+    trainset = torchvision.datasets.MNIST(root='~/datasets', train=True, download=True, transform=transform)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_dim, shuffle=True, num_workers=2)
+    testset = torchvision.datasets.MNIST(root='~/datasets', train=False, download=True, transform=transform)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_dim, shuffle=False, num_workers=2)
 
 # Define the fixed random input x
-x = torch.randn(batch_dim,input_size)
-# x = (torch.rand(batch_dim,input_size)<0.02).float()*torch.randn(batch_dim,input_size)
-target = torch.zeros(batch_dim,output_size)
-for idx in range(batch_dim):
-    target[idx,idx]=1
-# print(target)
-# assert(0)
+if args.dataset == "random":
+    x = torch.randn(batch_dim,input_size)
+    t = torch.tensor([i%output_size for i in range(batch_dim)],dtype=torch.long)
+elif args.dataset == "mnist":
+    for batch in trainloader: # Get one MNIST batch
+        x,t = batch
+        break
+else:
+    raise ValueError("Invalid dataset")
+
+target = torch.nn.functional.one_hot(t, num_classes=output_size)
+
+
 
 # Define the optimizer
 
@@ -57,16 +72,21 @@ model = HopfieldEnergy(input_size, hidden1_size, hidden2_size, output_size, beta
 
 
 # Optimization loop
+print("\n\n")
 print("beta: ",beta)
 print("learning_rate: ",learning_rate)
 error = []
 
-# for itr,batch in enumerate(trainloader):
-#     data = batch[0]
+###############
+# Training loop
+###############
+
+for itr in range(n_iters): # Random
+
+# for itr,batch in enumerate(trainloader): # MNIST
+#     x = batch[0]
 #     target = torch.nn.functional.one_hot(batch[1], num_classes=10)
 
-
-for itr in range(n_iters):
     energies = []  # List to store the energy values
 
     # Initialize internal state variables
@@ -81,7 +101,7 @@ for itr in range(n_iters):
     else:
         raise ValueError("Invalid initialization method")
 
-    optimizer = optim.SGD([h1, h2, y], lr=0.1)
+    optimizer = optim.SGD([h1, h2, y], lr=mr)
 
     for step in range(free_steps):
         optimizer.zero_grad()
@@ -102,9 +122,13 @@ for itr in range(n_iters):
     h2_free = h2.detach().clone()
     y_free = y.detach().clone()
 
-    if (itr+1)%(n_iters//20) == 0:
+
+    if (itr+1)%(n_iters//5) == 0:
+        print("Iteration: ",itr+1)
         # print("Output: ",y_free)
         print("Error: ",(y_free-target).pow(2).sum())
+        prediction = torch.argmax(y_free, dim=1)
+        print("Accuracy: ",torch.mean((prediction==t).float()))
 
     error.append((y_free-target).pow(2).sum())
 
@@ -144,22 +168,83 @@ for itr in range(n_iters):
     model.b2.weight.data += learning_rate * b2_update
     model.b3.weight.data += learning_rate * b3_update
 
-    # if itr%100==0:
-    #     # Plot the energies
-    #     plt.plot(energies,label=str(itr))
-    #     plt.xlabel('Step')
-    #     plt.ylabel('Energy')
-    #     plt.title('Energy vs. Step')
-    #     plt.legend()
-    #     plt.savefig('energy_vs_step.png')
+    if itr%100==0:
+        # Plot the energies
+        plt.plot(energies,label=str(itr))
+        plt.xlabel('Step')
+        plt.ylabel('Energy')
+        plt.title('Energy vs. Step')
+        plt.legend()
+        plt.savefig('energy_vs_step.png')
 
-    #     # Plot the error
-    #     plt.figure()
-    #     plt.plot(error)
-    #     plt.xlabel('Iteration')
-    #     plt.ylabel('Error')
-    #     plt.title('Error vs. Iteration\nbeta: '+str(beta)+'\nlearning_rate: '+str(learning_rate)+'\nError: '+str(error[-1]))
-    #     plt.savefig('error_vs_iteration_beta_'+str(beta)+'_lr_'+str(learning_rate)+'.png')
-    #     plt.close()
+        # Plot the error
+        plt.figure()
+        plt.plot(error)
+        plt.xlabel('Iteration')
+        plt.ylabel('Error')
+        plt.title('Error vs. Iteration\nbeta: '+str(beta)+'\nlearning_rate: '+str(learning_rate)+'\nError: '+str(error[-1]))
+        plt.savefig('error_vs_iteration_beta_'+str(beta)+'_lr_'+str(learning_rate)+'.png')
+        plt.close()
             
-        
+######################################################################################################
+# Generate random batch of points
+n_samples = 100
+
+x_test = x.repeat(n_samples,1).clone()
+# target_test = target.repeat(n_samples,1)
+
+h1 = torch.rand(batch_dim*n_samples, hidden1_size, requires_grad=True)
+h2 = torch.rand(batch_dim*n_samples, hidden2_size, requires_grad=True)
+y = torch.rand(batch_dim*n_samples, output_size, requires_grad=True)
+
+optimizer = optim.SGD([h1, h2, y], lr=mr)
+
+for step in range(free_steps):
+    optimizer.zero_grad()
+    energy = model(x_test, h1, h2, y)
+    energy.backward()
+    optimizer.step()
+
+    # Restrict values between 0 and 1
+    h1.data = torch.clamp(h1.data, 0, 1)
+    h2.data = torch.clamp(h2.data, 0, 1)
+    y.data = torch.clamp(y.data, 0, 1)
+
+    energies.append(energy.item())  # Save the energy value
+    # print(f'Step {step}, Energy: {energy.item()}')
+
+# Save copy of the internal state variables
+h1_free = h1.detach().clone()
+h2_free = h2.detach().clone()
+y_free = y.detach().clone()
+
+# print(y_free)
+
+# t-SNE plot to visualize clusters in h1_free
+colors = [t[i % batch_dim] for i in range(batch_dim * n_samples)]  # Example color vector
+cmap = cm.get_cmap('viridis')
+s, alpha = 2, 0.02
+
+X_embedded_h1 = TSNE(n_components=2).fit_transform(h1_free.numpy())
+plt.subplot(1, 3, 1)
+plt.scatter(X_embedded_h1[:, 0], X_embedded_h1[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+plt.title('hidden 1')
+plt.gca().set_aspect('equal')
+
+# t-SNE plot to visualize clusters in h2_free
+X_embedded_h2 = TSNE(n_components=2).fit_transform(h2_free.numpy())
+plt.subplot(1, 3, 2)
+plt.scatter(X_embedded_h2[:, 0], X_embedded_h2[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+plt.title('hidden 2')
+plt.gca().set_aspect('equal')
+
+# t-SNE plot to visualize clusters in y_free
+X_embedded_y = TSNE(n_components=2).fit_transform(y_free.numpy())
+plt.subplot(1, 3, 3)
+plt.scatter(X_embedded_y[:, 0], X_embedded_y[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+plt.title('output')
+plt.gca().set_aspect('equal')
+
+plt.tight_layout()
+plt.figure(figsize=(10, 6))  # Adjust the figure size
+plt.savefig('clusters.png')
