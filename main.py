@@ -27,6 +27,7 @@ parser.add_argument("--seed", type=int, default=0, help="Random seed")
 parser.add_argument("--init", type=str, default="random", help="Initialization method for weights")
 parser.add_argument("--dataset", type=str, default="mnist", help="Dataset to use")
 parser.add_argument("--mr", type=float, default=0.1, help="Energy minimization rate")
+parser.add_argument("--lam", type=float, default=1.0, help="Lambda value for weight updates")
 args = parser.parse_args()
 
 
@@ -41,14 +42,16 @@ beta = args.beta # 1-40
 batch_dim = args.batch_dim
 n_iters = args.n_iters
 mr = args.mr #0.1
+lam = args.lam
 
 if args.dataset == "mnist":
     # Load the MNIST dataset
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Lambda(lambda x: x.view(-1))])
+    transform = transforms.Compose([transforms.ToTensor(),torchvision.transforms.Normalize(mean=(0.0,), std=(1.0,)),transforms.Lambda(lambda x: x.view(-1))])
     trainset = torchvision.datasets.MNIST(root='~/datasets', train=True, download=True, transform=transform)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_dim, shuffle=True, num_workers=2)
     testset = torchvision.datasets.MNIST(root='~/datasets', train=False, download=True, transform=transform)
     testloader = torch.utils.data.DataLoader(testset, batch_size=batch_dim, shuffle=False, num_workers=2)
+
 
 # Define the fixed random input x
 if args.dataset == "random":
@@ -68,13 +71,20 @@ target = torch.nn.functional.one_hot(t, num_classes=output_size)
 # Define the optimizer
 
 # For weight updates
-model = HopfieldEnergy(input_size, hidden1_size, hidden2_size, output_size, beta=beta)
+model = HopfieldEnergy(input_size, hidden1_size, hidden2_size, output_size, beta=beta, lam=lam)
 
 
 # Optimization loop
 print("\n\n")
-print("beta: ",beta)
-print("learning_rate: ",learning_rate)
+print(r"$\beta$: ",beta)
+print("Learning rate: ",learning_rate)
+print("Iterations: ",n_iters)
+print("Free phase steps: ",free_steps)
+print("Nudge phase steps: ",nudge_steps)
+print("Minimization rate: ",mr)
+print("batch_dim: ",batch_dim)
+print("\n\n")
+
 error = []
 
 ###############
@@ -123,12 +133,15 @@ for itr in range(n_iters): # Random
     y_free = y.detach().clone()
 
 
-    if (itr+1)%(n_iters//5) == 0:
+    if (itr+1)%(n_iters//10) == 0:
         print("Iteration: ",itr+1)
         # print("Output: ",y_free)
         print("Error: ",(y_free-target).pow(2).sum())
         prediction = torch.argmax(y_free, dim=1)
-        print("Accuracy: ",torch.mean((prediction==t).float()))
+        accuracy = torch.mean((prediction==t).float())
+        print("Accuracy: ",accuracy)
+        if accuracy < 0.2:
+            assert(0)   # Kill if not learning
 
     error.append((y_free-target).pow(2).sum())
 
@@ -168,7 +181,7 @@ for itr in range(n_iters): # Random
     model.b2.weight.data += learning_rate * b2_update
     model.b3.weight.data += learning_rate * b3_update
 
-    if itr%100==0:
+    if (itr+1)%(n_iters//20) == 0:
         # Plot the energies
         plt.plot(energies,label=str(itr))
         plt.xlabel('Step')
@@ -176,7 +189,7 @@ for itr in range(n_iters): # Random
         plt.title('Energy vs. Step')
         plt.legend()
         plt.savefig('energy_vs_step.png')
-
+    if (itr+1)%(n_iters//200) == 0:
         # Plot the error
         plt.figure()
         plt.plot(error)
