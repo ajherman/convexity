@@ -137,9 +137,9 @@ for itr in range(n_iters): # Random
         print("Error: ",(y_free-target).pow(2).sum())
         prediction = torch.argmax(y_free, dim=1)
         accuracy = torch.mean((prediction==t).float())
-        print("Accuracy: ",accuracy)
         if accuracy < 0.2:
             assert(0)   # Kill if not learning
+        print("Accuracy: ",accuracy)
 
     error.append((y_free-target).pow(2).sum())
 
