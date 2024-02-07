@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 class HopfieldEnergy(nn.Module):
     def __init__(self, input_size, hidden1_size, hidden2_size, output_size, beta=1.0, lam=1.0):

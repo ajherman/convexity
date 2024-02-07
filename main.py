@@ -26,8 +26,9 @@ parser.add_argument("--init", type=str, default="random", help="Initialization m
 parser.add_argument("--dataset", type=str, default="mnist", help="Dataset to use")
 parser.add_argument("--mr", type=float, default=0.1, help="Energy minimization rate")
 parser.add_argument("--lam", type=float, default=1.0, help="Lambda value for weight updates")
+parser.add_argument("--make-tsne", action="store_true", help="Make t-SNE plot")
+parser.add_argument("--print-frequency", type=int, default=40, help="Frequency of printing the error")
 args = parser.parse_args()
-
 
 input_size = args.input_size
 hidden1_size = args.hidden1_size
@@ -41,6 +42,7 @@ batch_dim = args.batch_dim
 n_iters = args.n_iters
 mr = args.mr #0.1
 lam = args.lam
+print_frequency = args.print_frequency
 
 if args.dataset == "mnist":
     # Load the MNIST dataset
@@ -131,8 +133,8 @@ for itr in range(n_iters): # Random
     y_free = y.detach().clone()
 
 
-    if (itr+1)%(n_iters//20) == 0:
-        print("Iteration: ",itr+1)
+    if (itr+1)%(n_iters//print_frequency) == 0:
+        print("\n\nIteration: ",itr+1)
         # print("Output: ",y_free)
         print("Error: ",(y_free-target).pow(2).sum())
         prediction = torch.argmax(y_free, dim=1)
@@ -162,6 +164,16 @@ for itr in range(n_iters): # Random
     h2_nudge = h2.detach().clone()
     y_nudge = y.detach().clone()
 
+    # Calculate the L2 norm of the differences
+    if (itr+1)%(n_iters//print_frequency) == 0:
+        l2_diff_h1 = torch.norm(h1_nudge - h1_free)
+        l2_diff_h2 = torch.norm(h2_nudge - h2_free)
+        l2_diff_y = torch.norm(y_nudge - y_free)
+        print("")
+        print("L2 norm of differences (h1):", l2_diff_h1.item())
+        print("L2 norm of differences (h2):", l2_diff_h2.item())
+        print("L2 norm of differences (y):", l2_diff_y.item())
+
     # Calculate the weight updates
     w1_update = (x.t() @ h1_nudge - x.t() @ h1_free)/(beta*batch_dim)
     w2_update = (h1_nudge.t() @ h2_nudge - h1_free.t() @ h2_free)/(beta*batch_dim)
@@ -170,6 +182,16 @@ for itr in range(n_iters): # Random
     b1_update = (h1_nudge - h1_free).sum(0)/(beta*batch_dim)
     b2_update = (h2_nudge - h2_free).sum(0)/(beta*batch_dim)
     b3_update = (y_nudge - y_free).sum(0)/(beta*batch_dim)
+
+    # Print L2 norm of weight updates
+    if (itr+1)%(n_iters//print_frequency) == 0:
+        print("")
+        print("L2 norm of weight updates (w1):", torch.norm(w1_update).item())
+        print("L2 norm of weight updates (w2):", torch.norm(w2_update).item())
+        print("L2 norm of weight updates (w3):", torch.norm(w3_update).item())
+        print("L2 norm of weight updates (b1):", torch.norm(b1_update).item())
+        print("L2 norm of weight updates (b2):", torch.norm(b2_update).item())
+        print("L2 norm of weight updates (b3):", torch.norm(b3_update).item())
 
     # Update the weights
     model.w1.weight.data += learning_rate * w1_update
@@ -187,7 +209,7 @@ for itr in range(n_iters): # Random
         plt.title('Energy vs. Step')
         plt.legend()
         plt.savefig('energy_vs_step.png')
-    if (itr+1)%(n_iters//200) == 0:
+    if (itr+1)%(n_iters//print_frequency) == 0:
         # Plot the error
         plt.figure()
         plt.plot(error)
@@ -198,66 +220,112 @@ for itr in range(n_iters): # Random
         plt.close()
             
 ######################################################################################################
-# Generate random batch of points
-n_samples = 100
+if args.make_tsne:
 
-x_test = x.repeat(n_samples,1).clone()
-# target_test = target.repeat(n_samples,1)
+    # Generate random batch of points
+    n_samples = 100
 
-h1 = torch.rand(batch_dim*n_samples, hidden1_size, requires_grad=True)
-h2 = torch.rand(batch_dim*n_samples, hidden2_size, requires_grad=True)
-y = torch.rand(batch_dim*n_samples, output_size, requires_grad=True)
+    x_test = x.repeat(n_samples,1).clone()
+    target_test = target.repeat(n_samples,1).clone()
+    t_test = t.repeat(n_samples).clone()
 
-optimizer = optim.SGD([h1, h2, y], lr=mr)
+    h1 = torch.zeros(batch_dim*n_samples, hidden1_size, requires_grad=True)
+    h2 = torch.zeros(batch_dim*n_samples, hidden2_size, requires_grad=True)
+    y = torch.zeros(batch_dim*n_samples, output_size, requires_grad=True)
+    # h1 = torch.rand(batch_dim*n_samples, hidden1_size, requires_grad=True)
+    # h2 = torch.rand(batch_dim*n_samples, hidden2_size, requires_grad=True)
+    # y = torch.rand(batch_dim*n_samples, output_size, requires_grad=True)
 
-for step in range(free_steps):
-    optimizer.zero_grad()
-    energy = model(x_test, h1, h2, y)
-    energy.backward()
-    optimizer.step()
+    optimizer = optim.SGD([h1, h2, y], lr=mr)
 
-    # Restrict values between 0 and 1
-    h1.data = torch.clamp(h1.data, 0, 1)
-    h2.data = torch.clamp(h2.data, 0, 1)
-    y.data = torch.clamp(y.data, 0, 1)
+    for step in range(free_steps):
+        optimizer.zero_grad()
+        energy = model(x_test, h1, h2, y)
+        energy.backward()
+        optimizer.step()
 
-    energies.append(energy.item())  # Save the energy value
-    # print(f'Step {step}, Energy: {energy.item()}')
+        # Restrict values between 0 and 1
+        h1.data = torch.clamp(h1.data, 0, 1)
+        h2.data = torch.clamp(h2.data, 0, 1)
+        y.data = torch.clamp(y.data, 0, 1)
 
-# Save copy of the internal state variables
-h1_free = h1.detach().clone()
-h2_free = h2.detach().clone()
-y_free = y.detach().clone()
+        energies.append(energy.item())  # Save the energy value
+        # print(f'Step {step}, Energy: {energy.item()}')
 
-# print(y_free)
+    # Save copy of the internal state variables
+    h1_free = h1.detach().clone()
+    h2_free = h2.detach().clone()
+    y_free = y.detach().clone()
 
-# # t-SNE plot to visualize clusters in h1_free
-# from sklearn.manifold import TSNE
+    # print(y_free)
+    diffs = (y_free-target_test).pow(2).sum(dim=1)
+    print("Error: ",diffs.sum())
+    prediction = torch.argmax(y_free, dim=1)
+    accuracy = torch.mean((prediction==t_test).float())
+    # if accuracy < 0.2:
+    #     assert(0)   # Kill if not learning
+    print("Accuracy: ",accuracy)
+    print(torch.max(torch.abs(y_free-target_test)))
+    print(torch.max(diffs))
 
-# colors = [t[i % batch_dim] for i in range(batch_dim * n_samples)]  # Example color vector
-# cmap = cm.get_cmap('viridis')
-# s, alpha = 2, 0.02
+    # t-SNE plot to visualize clusters in h1_free
+    from sklearn.manifold import TSNE
 
-# X_embedded_h1 = TSNE(n_components=2).fit_transform(h1_free.numpy())
-# plt.subplot(1, 3, 1)
-# plt.scatter(X_embedded_h1[:, 0], X_embedded_h1[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-# plt.title('hidden 1')
-# plt.gca().set_aspect('equal')
+    colors = [t[i % batch_dim] for i in range(batch_dim * n_samples)]  # Example color vector
+    cmap = plt.get_cmap('tab10') #cm.get_cmap('viridis')
+    s, alpha = 2, 0.02
 
-# # t-SNE plot to visualize clusters in h2_free
-# X_embedded_h2 = TSNE(n_components=2).fit_transform(h2_free.numpy())
-# plt.subplot(1, 3, 2)
-# plt.scatter(X_embedded_h2[:, 0], X_embedded_h2[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-# plt.title('hidden 2')
-# plt.gca().set_aspect('equal')
+    noise=np.random.normal(0,0.01,size=(batch_dim*n_samples,hidden1_size))
+    X_embedded_h1 = TSNE(n_components=2,perplexity=50).fit_transform(h1_free.numpy()+noise)
+    plt.subplot(2, 2, 1)
+    plt.scatter(X_embedded_h1[:, 0], X_embedded_h1[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+    plt.title('hidden 1')
+    plt.gca().set_aspect('equal')
 
-# # t-SNE plot to visualize clusters in y_free
-# X_embedded_y = TSNE(n_components=2).fit_transform(y_free.numpy())
-# plt.subplot(1, 3, 3)
-# plt.scatter(X_embedded_y[:, 0], X_embedded_y[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-# plt.title('output')
-# plt.gca().set_aspect('equal')
+    # t-SNE plot to visualize clusters in h2_free
+    noise=np.random.normal(0,0.01,size=(batch_dim*n_samples,hidden2_size))
+    X_embedded_h2 = TSNE(n_components=2,perplexity=50).fit_transform(h2_free.numpy()+noise)
+    plt.subplot(2, 2, 2)
+    plt.scatter(X_embedded_h2[:, 0], X_embedded_h2[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+    plt.title('hidden 2')
+    plt.gca().set_aspect('equal')
 
-# plt.tight_layout()
-# plt.figure(figsize=(10, 6))  # Adjust the figure size
-# plt.savefig('clusters.png')
+    # t-SNE plot to visualize clusters in y_free
+    noise=np.random.normal(0,0.0001,size=(batch_dim*n_samples,output_size))
+    X_embedded_y = TSNE(n_components=2,perplexity=50).fit_transform(y_free.numpy()+noise)
+    # X_embedded_y = TSNE(n_components=2,perplexity=30).fit_transform(target_test.numpy()+np.random.normal(0,0.001,size=(batch_dim*n_samples,output_size)))
+    plt.subplot(2, 2, 3)
+    plt.scatter(X_embedded_y[:, 0], X_embedded_y[:, 1], c=colors, s=s, alpha=1.0, cmap=cmap)
+    plt.title('output')
+    plt.gca().set_aspect('equal')
+
+    # t-SNE plot to visualize clusters in full state
+    # features = torch.cat((h1_free, h2_free, y_free), dim=1)
+    # noise=np.random.normal(0,0.0001,size=(batch_dim*n_samples,hidden1_size+hidden2_size+output_size))
+    # X_embedded = TSNE(n_components=2,perplexity=50).fit_transform(features.numpy()+noise)
+    # plt.subplot(2,2,4)
+    # plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+    # plt.title('Concatenated Features')
+    # plt.gca().set_aspect('equal')
+
+    noise=np.random.normal(0,0.01,size=(batch_dim*n_samples,input_size))
+    X_embedded = TSNE(n_components=2,perplexity=50).fit_transform(x_test.numpy()+noise)
+
+    # from sklearn.preprocessing import StandardScaler
+    # standardized_data = StandardScaler().fit_transform(x_test.numpy()+noise)
+    # X_embedded = TSNE(n_components=2).fit_transform(standardized_data)
+    # X_embedded = TSNE(n_components=2, perplexity=30, learning_rate=200, n_iter=3000, init='pca', random_state=42).fit_transform(x_test.numpy())
+
+    plt.subplot(2,2,4)
+    plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+    plt.title('Input')
+    plt.gca().set_aspect('equal')
+
+    # legend_labels = {i: f'Category {i}' for i in range(10)}  # Custom labels for each category
+    legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
+                                markerfacecolor=cmap(i), markersize=10) for i in range(10)]
+    plt.legend(handles=legend_handles, title="Legend", bbox_to_anchor=(1.05, 1), loc='center left')
+    plt.suptitle('t-SNE Visualization of Clusters\n Training init: zeros')
+    plt.tight_layout()
+    # plt.figure(figsize=(10, 6))  # Adjust the figure size
+    plt.savefig('clusters.png')
