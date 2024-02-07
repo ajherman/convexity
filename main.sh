@@ -27,4 +27,6 @@
 # # # From paper
 # python3 -u main.py --learning-rate 5.0 --beta 2.0 --input-size 784 --hidden1-size 200 --hidden2-size 200 --output-size 10 --mr 0.5 --lam 2.0 --batch-dim 100 --init zeros --dataset mnist --n-iters 2000 >> results.txt
 # python3 -u main.py --learning-rate 1.0 --beta 0.2 --input-size 784 --hidden1-size 256 --hidden2-size 256 --output-size 10 --mr 0.5 --lam 2.0 --batch-dim 200 --init zeros --dataset mnist --n-iters 2000 --make-tsne >> results.txt
-python3 -u main.py --learning-rate 1.0 --beta 1.0 --input-size 784 --hidden1-size 256 --hidden2-size 256 --output-size 10 --mr 0.5 --lam 2.0 --batch-dim 100 --init zeros --dataset mnist --n-iters 200 --make-tsne >> results.txt
+# python3 -u main.py --learning-rate 1.0 --beta 1.0 --input-size 784 --hidden1-size 256 --hidden2-size 256 --output-size 10 --mr 0.5 --lam 2.0 --batch-dim 50 --init zeros --dataset mnist --n-iters 10000 --make-tsne >> results.txt
+python3 -u main.py --learning-rate 1.0 --make-tsne >> results.txt
+# srun -N 1 -n 1 -c 6 -o results.out --open-mode=append ./main_wrapper.sh  --learning-rate $lr --beta $beta --mr $mr --lam $l --input-size 784 --output-size 10 --hidden1-size 500 --hidden2-size 500 --batch-dim 200 --init zeros --n-iters 2000 &
