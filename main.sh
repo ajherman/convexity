@@ -7,10 +7,10 @@
 #module load miniconda3
 #source activate /vast/home/ajherman/miniconda3/envs/pytorch
 
-hidden1s=(256 384)
+hidden1s=(256 384 512)
 hidden2s=(256 384)
-learning_rates=(0.2 0.5 1.0 2.0) 
-betas=(0.2 0.5 1.0 2.0 5.0)
+learning_rates=(0.5 1.0 2.0) 
+betas=(1.0 2.0 5.0)
 mrs=(0.5 1.0)
 lam=(2.0 1.0)
 for beta in "${betas[@]}"; do
