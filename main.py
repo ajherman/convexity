@@ -27,7 +27,7 @@ parser.add_argument("--dataset", type=str, default="mnist", help="Dataset to use
 parser.add_argument("--mr", type=float, default=0.5, help="Energy minimization rate")
 parser.add_argument("--lam", type=float, default=2.0, help="Lambda value for weight updates")
 parser.add_argument("--make-tsne", action="store_true", help="Make t-SNE plot")
-parser.add_argument("--print-frequency", type=int, default=40, help="Frequency of printing the error")
+parser.add_argument("--print-frequency", type=int, default=25, help="Frequency of printing the error")
 parser.add_argument("--n-epochs", type=int, default=20, help="Number of epochs")
 args = parser.parse_args()
 
@@ -45,6 +45,8 @@ mr = args.mr #0.1
 lam = args.lam
 print_frequency = args.print_frequency
 n_epochs = args.n_epochs
+test_batch_size = 10
+
 
 if args.dataset == "mnist":
     # Load the MNIST dataset
@@ -52,21 +54,22 @@ if args.dataset == "mnist":
     trainset = torchvision.datasets.MNIST(root='~/datasets', train=True, download=True, transform=transform)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_dim, shuffle=True, num_workers=2)
     testset = torchvision.datasets.MNIST(root='~/datasets', train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_dim, shuffle=False, num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=test_batch_size, shuffle=False, num_workers=2)
 
 
 # Define the fixed random input x
-if args.dataset == "random":
+elif args.dataset == "random":
     x = torch.randn(batch_dim,input_size)
     t = torch.tensor([i%output_size for i in range(batch_dim)],dtype=torch.long)
-elif args.dataset == "mnist":
-    for batch in trainloader: # Get one MNIST batch
-        x,t = batch
-        break
+    target = torch.nn.functional.one_hot(t, num_classes=output_size)
+
+# elif args.dataset == "mnist":
+#     for batch in trainloader: # Get one MNIST batch
+#         x,t = batch
+#         break
 else:
     raise ValueError("Invalid dataset")
 
-target = torch.nn.functional.one_hot(t, num_classes=output_size)
 
 
 
@@ -75,68 +78,80 @@ target = torch.nn.functional.one_hot(t, num_classes=output_size)
 # For weight updates
 model = HopfieldEnergy(input_size, hidden1_size, hidden2_size, output_size, beta=beta, lam=lam)
 
+def minimizeEnergy(model,steps,optimizer,x,h1,h2,y,target=None,print_energy=False):
+    energies = []  # List to store the energy values
+    for step in range(steps):
+        optimizer.zero_grad()
+        energy = model(x, h1, h2, y, target=target)
+        energy.backward()
+        optimizer.step()
+
+        # Restrict values between 0 and 1
+        h1.data = torch.clamp(h1.data, 0, 1)
+        h2.data = torch.clamp(h2.data, 0, 1)
+        y.data = torch.clamp(y.data, 0, 1)
+
+        energies.append(energy.item())  # Save the energy value
+    # Save copy of the internal state variables
+    h1_free = h1.detach().clone()
+    h2_free = h2.detach().clone()
+    y_free = y.detach().clone()
+
+    return h1_free, h2_free, y_free, energies
 
 # Optimization loop
 print("\n\n")
-print(r"$\beta$: ",beta)
+print("Beta: ",beta)
 print("Learning rate: ",learning_rate)
 print("Iterations: ",n_iters)
+print("Hidden1 size: ",hidden1_size)
+print("Hidden2 size: ",hidden2_size)
+print("Output size: ",output_size)
+print("Input size: ",input_size)
+print("Batch dim: ",batch_dim)
+print("Seed: ",args.seed)
+print("Dataset: ",args.dataset)
 print("Free phase steps: ",free_steps)
 print("Nudge phase steps: ",nudge_steps)
 print("Minimization rate: ",mr)
-print("batch_dim: ",batch_dim)
-print("\n\n")
+print("Lambda: ",lam)
+print("\n")
 
 error = []
+
+h1 = torch.zeros(batch_dim, hidden1_size, requires_grad=True)
+h2 = torch.zeros(batch_dim, hidden2_size, requires_grad=True)
+y = torch.zeros(batch_dim, output_size, requires_grad=True)
+optimizer = optim.SGD([h1, h2, y], lr=mr)
 
 ###############
 # Training loop
 ###############
 for epoch in range(n_epochs):
-
-    # for itr in range(n_iters): # Random
     print("Epoch: ",epoch)
     for itr,batch in enumerate(trainloader): # MNIST
-        x,t = batch
-        target = torch.nn.functional.one_hot(t, num_classes=10)
-        # if itr > n_iters:
-        #     break
+        if args.dataset == "mnist":
+            x,t = batch
+        else:
+            pass # Use the fixed random batch
 
-        energies = []  # List to store the energy values
+        target = torch.nn.functional.one_hot(t, num_classes=10)
 
         # Initialize internal state variables
         if args.init == "zeros":
-            h1 = torch.zeros(batch_dim, hidden1_size, requires_grad=True)
-            h2 = torch.zeros(batch_dim, hidden2_size, requires_grad=True)
-            y = torch.zeros(batch_dim, output_size, requires_grad=True)
+            h1.data.zero_()
+            h2.data.zero_()
+            y.data.zero_()
         elif args.init == "random":
-            h1 = torch.rand(batch_dim, hidden1_size, requires_grad=True)
-            h2 = torch.rand(batch_dim, hidden2_size, requires_grad=True)
-            y = torch.rand(batch_dim, output_size, requires_grad=True)
+            h1.data.uniform_(0,1)
+            h2.data.uniform_(0,1)
+            y.data.uniform_(0,1)
         else:
             raise ValueError("Invalid initialization method")
 
         optimizer = optim.SGD([h1, h2, y], lr=mr)
-
-        for step in range(free_steps):
-            optimizer.zero_grad()
-            energy = model(x, h1, h2, y)
-            energy.backward()
-            optimizer.step()
-
-            # Restrict values between 0 and 1
-            h1.data = torch.clamp(h1.data, 0, 1)
-            h2.data = torch.clamp(h2.data, 0, 1)
-            y.data = torch.clamp(y.data, 0, 1)
-
-            energies.append(energy.item())  # Save the energy value
-            # print(f'Step {step}, Energy: {energy.item()}')
-
-        # Save copy of the internal state variables
-        h1_free = h1.detach().clone()
-        h2_free = h2.detach().clone()
-        y_free = y.detach().clone()
-
+        
+        h1_free, h2_free, y_free, phase1_energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
 
         if (itr+1)%(n_iters//print_frequency) == 0:
             print("\nIteration: ",itr+1)
@@ -150,35 +165,9 @@ for epoch in range(n_epochs):
 
         error.append((y_free-target).pow(2).sum())
 
-        for step in range(nudge_steps):
-            optimizer.zero_grad()
-            energy = model(x, h1, h2, y, target=target)
-            energy.backward()
-            optimizer.step()
-
-            # Restrict values between 0 and 1
-            h1.data = torch.clamp(h1.data, 0, 1)
-            h2.data = torch.clamp(h2.data, 0, 1)
-            y.data = torch.clamp(y.data, 0, 1)
-
-            energies.append(energy.item())  # Save the energy value
-            # print(f'Step {step}, Energy: {energy.item()}')
-
-        # Save copy of the internal state variables
-        h1_nudge = h1.detach().clone()
-        h2_nudge = h2.detach().clone()
-        y_nudge = y.detach().clone()
-
-        # # Calculate the L2 norm of the differences
-        # if (itr+1)%(n_iters//print_frequency) == 0:
-        #     l2_diff_h1 = torch.norm(h1_nudge - h1_free)
-        #     l2_diff_h2 = torch.norm(h2_nudge - h2_free)
-        #     l2_diff_y = torch.norm(y_nudge - y_free)
-        #     print("")
-        #     print("L2 norm of differences (h1):", l2_diff_h1.item())
-        #     print("L2 norm of differences (h2):", l2_diff_h2.item())
-        #     print("L2 norm of differences (y):", l2_diff_y.item())
-
+        h1_nudge, h2_nudge, y_nudge, phase2_energy = minimizeEnergy(model,nudge_steps,optimizer,x,h1,h2,y,target=target,print_energy=False)
+        energies = phase1_energies + phase2_energy
+        
         # Calculate the weight updates
         w1_update = (x.t() @ h1_nudge - x.t() @ h1_free)/(beta*batch_dim)
         w2_update = (h1_nudge.t() @ h2_nudge - h1_free.t() @ h2_free)/(beta*batch_dim)
@@ -226,120 +215,75 @@ for epoch in range(n_epochs):
 
     ######################################################################################################
     if args.make_tsne:
-        for itr,batch in enumerate(testloader): # MNIST
-            x_test,t_test = batch
-            target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
-            break
+        if args.dataset == "mnist":
+            for itr,batch in enumerate(testloader): # MNIST
+                if np.random.random()<0.1:
+                    x_test,t_test = batch
+                    target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
+                    break
+        elif args.dataset == "random":
+            x_test, t_test, target_test = x, t, target
+        else:
+            raise ValueError("Invalid dataset")
+        
         # Generate random batch of points
-        n_samples = 100
+        n_samples = 1000
 
-        x_test = x.repeat(n_samples,1).clone()
-        target_test = target.repeat(n_samples,1).clone()
-        t_test = t.repeat(n_samples).clone()
+        x_test = x_test.repeat(n_samples,1).clone()
+        target_test = target_test.repeat(n_samples,1).clone()
+        t_test = t_test.repeat(n_samples).clone()
 
-        # h1 = torch.zeros(batch_dim*n_samples, hidden1_size, requires_grad=True)
-        # h2 = torch.zeros(batch_dim*n_samples, hidden2_size, requires_grad=True)
-        # y = torch.zeros(batch_dim*n_samples, output_size, requires_grad=True)
-        h1 = torch.rand(batch_dim*n_samples, hidden1_size, requires_grad=True)
-        h2 = torch.rand(batch_dim*n_samples, hidden2_size, requires_grad=True)
-        y = torch.rand(batch_dim*n_samples, output_size, requires_grad=True)
+        h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
+        h2_test = torch.rand(test_batch_size*n_samples, hidden2_size, requires_grad=True)
+        y_test = torch.rand(test_batch_size*n_samples, output_size, requires_grad=True)
 
-        optimizer = optim.SGD([h1, h2, y], lr=mr)
+        # h1.data.uniform_(0,1)
+        # h2.data.uniform_(0,1)
+        # y.data.uniform_(0,1)
 
-        for step in range(free_steps):
-            optimizer.zero_grad()
-            energy = model(x_test, h1, h2, y)
-            energy.backward()
-            optimizer.step()
+        optimizer = optim.SGD([h1_test, h2_test, y_test], lr=mr)
 
-            # Restrict values between 0 and 1
-            h1.data = torch.clamp(h1.data, 0, 1)
-            h2.data = torch.clamp(h2.data, 0, 1)
-            y.data = torch.clamp(y.data, 0, 1)
+        h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
 
-            energies.append(energy.item())  # Save the energy value
-            # print(f'Step {step}, Energy: {energy.item()}')
-
-        # Save copy of the internal state variables
-        h1_free = h1.detach().clone()
-        h2_free = h2.detach().clone()
-        y_free = y.detach().clone()
         print("Max y val: ",torch.max(y_free))
         print("Min y val: ",torch.min(y_free))
         print("Max h1 val: ",torch.max(h1_free))
         print("Min h1 val: ",torch.min(h1_free))
         print("Max h2 val: ",torch.max(h2_free))
         print("Min h2 val: ",torch.min(h2_free))
-
-        # # print(y_free)
-        # diffs = (y_free-target_test).pow(2).sum(dim=1)
-        # print("Error: ",diffs.sum())
-        # prediction = torch.argmax(y_free, dim=1)
-        # accuracy = torch.mean((prediction==t_test).float())
-        # # if accuracy < 0.2:
-        # #     assert(0)   # Kill if not learning
-        # print("Accuracy: ",accuracy)
  
-
-        # t-SNE plot to visualize clusters in h1_free
         from sklearn.manifold import TSNE
 
-        colors = [t[i % batch_dim] for i in range(batch_dim * n_samples)]  # Example color vector
+        # colors = t_test # [t_test[i % batch_dim] for i in range(4 * n_samples)]  # Example color vector
+        colors = [i%test_batch_size for i in range(test_batch_size*n_samples)]
         cmap = plt.get_cmap('tab10') #cm.get_cmap('viridis')
-        s, alpha = 2, 0.02
-                
+        # s, alpha = 2, 1.0
+        def visualize_clusters(layer, colors, std, title, perplexity, cmap=cmap, s=2, alpha=0.1):
+            noise = std * torch.randn(layer.shape)
+            noisy_layer = layer + noise
+            X_embedded = TSNE(n_components=2, perplexity=perplexity).fit_transform(noisy_layer.numpy())
+            plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+            plt.title(title)
+            plt.gca().set_aspect('equal')
+
         plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
 
-        noise=np.random.normal(0,0.01,size=(batch_dim*n_samples,hidden1_size))
-        X_embedded_h1 = TSNE(n_components=2,perplexity=50).fit_transform(h1_free.numpy()+noise)
         plt.subplot(2, 2, 1)
-        plt.scatter(X_embedded_h1[:, 0], X_embedded_h1[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-        plt.title('hidden 1')
-        plt.gca().set_aspect('equal')
+        visualize_clusters(h1_free, colors, 0.01, 'hidden 1', 50)
 
-        # t-SNE plot to visualize clusters in h2_free
-        noise=np.random.normal(0,0.01,size=(batch_dim*n_samples,hidden2_size))
-        X_embedded_h2 = TSNE(n_components=2,perplexity=50).fit_transform(h2_free.numpy()+noise)
         plt.subplot(2, 2, 2)
-        plt.scatter(X_embedded_h2[:, 0], X_embedded_h2[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-        plt.title('hidden 2')
-        plt.gca().set_aspect('equal')
+        visualize_clusters(h2_free, colors, 0.01, 'hidden 2', 50)
 
-        # t-SNE plot to visualize clusters in y_free
-        noise=np.random.normal(0,0.0001,size=(batch_dim*n_samples,output_size))
-        X_embedded_y = TSNE(n_components=2,perplexity=50).fit_transform(y_free.numpy()+noise)
-        # X_embedded_y = TSNE(n_components=2,perplexity=30).fit_transform(target_test.numpy()+np.random.normal(0,0.001,size=(batch_dim*n_samples,output_size)))
         plt.subplot(2, 2, 3)
-        plt.scatter(X_embedded_y[:, 0], X_embedded_y[:, 1], c=colors, s=s, alpha=1.0, cmap=cmap)
-        plt.title('output')
-        plt.gca().set_aspect('equal')
+        visualize_clusters(y_free, colors, 0.01, 'output', 50)
 
-        # t-SNE plot to visualize clusters in full state
-        # features = torch.cat((h1_free, h2_free, y_free), dim=1)
-        # noise=np.random.normal(0,0.0001,size=(batch_dim*n_samples,hidden1_size+hidden2_size+output_size))
-        # X_embedded = TSNE(n_components=2,perplexity=50).fit_transform(features.numpy()+noise)
-        # plt.subplot(2,2,4)
-        # plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-        # plt.title('Concatenated Features')
-        # plt.gca().set_aspect('equal')
+        plt.subplot(2, 2, 4)
+        visualize_clusters(x_test, colors, 0.01, 'input', 50)
 
-        noise=np.random.normal(0,0.01,size=(batch_dim*n_samples,input_size))
-        X_embedded = TSNE(n_components=2,perplexity=50).fit_transform(x_test.numpy()+noise)
-
-        plt.subplot(2,2,4)
-        plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-        plt.title('Input')
-        plt.gca().set_aspect('equal')
-
-        # legend_labels = {i: f'Category {i}' for i in range(10)}  # Custom labels for each category
         legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
                         markerfacecolor=cmap(i), markersize=10) for i in range(10)]
-        plt.legend(handles=legend_handles, title="Classes",bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.suptitle('t-SNE Visualization of Clusters\n Training init: zeros')
-        # plt.tight_layout()
 
         plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
-
-        # plt.subplots_adjust(top=0.9, bottom=0.1, left=0.1, right=0.9, hspace=0.4, wspace=0.4)
-        # plt.figure(figsize=(10, 6))  # Adjust the figure size
-        plt.savefig('clusters.png',bbox_inches='tight')
+        plt.savefig('clusters.png', bbox_inches='tight')
