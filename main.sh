@@ -9,7 +9,7 @@
 
 hidden1s=(256 384)
 hdden2s=(256 384)
-learning_rates=(0.2 0.5 1.0 2.0 ) 
+learning_rates=(0.2 0.5 1.0 2.0) 
 betas=(0.2 0.5 1.0 2.0 5.0)
 # mr=(0.5 1.0)
 lam=(2.0 1.0)
@@ -20,7 +20,7 @@ for l in "${lam[@]}"; do
 for hidden1 in "${hidden1s[@]}"; do
 for hidden2 in "${hidden2s[@]}"; do
         # name="lr_${lr}_beta_${beta}"
-        name="lr_${lr}_beta_${beta}_mr_${mr}_lam_${l}"_h1_${hidden1}"_h2_${hidden2}"
+        name="lr_${lr}_beta_${beta}_mr_${mr}_lam_${l}_h1_${hidden1}_h2_${hidden2}"
         srun -N 1 -n 1 -c 6 -o $name.out --open-mode=append ./main_wrapper.sh --output-dir $name --learning-rate $lr --beta $beta --mr 0.5 --lam $l --hidden1-size $hidden1 --hidden2-size $hidden2 --init zeros &
         # python3 -u main.py --learning-rate $lr --beta $beta --input-size 784 --output-size 10 --batch-dim 50 --init random --n-iters 3000 >> results.txt 
 done
