@@ -21,7 +21,7 @@ for hidden1 in "${hidden1s[@]}"; do
 for hidden2 in "${hidden2s[@]}"; do
         # name="lr_${lr}_beta_${beta}"
         name="lr_${lr}_beta_${beta}_mr_${mr}_lam_${l}_h1_${hidden1}_h2_${hidden2}"
-        srun -N 1 -n 1 -c 6 -o $name.out --open-mode=append ./main_wrapper.sh --output-dir $name --learning-rate $lr --beta $beta --mr 0.5 --lam $l --hidden1-size $hidden1 --hidden2-size $hidden2 --init zeros &
+        srun -N 1 -n 1 -c 20 -o $name.out --open-mode=append ./main_wrapper.sh --output-dir $name --learning-rate $lr --beta $beta --mr 0.5 --lam $l --hidden1-size $hidden1 --hidden2-size $hidden2 --init zeros &
         # python3 -u main.py --learning-rate $lr --beta $beta --input-size 784 --output-size 10 --batch-dim 50 --init random --n-iters 3000 >> results.txt 
 done
 # done
