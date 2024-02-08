@@ -7,24 +7,24 @@
 #module load miniconda3
 #source activate /vast/home/ajherman/miniconda3/envs/pytorch
 
-hidden1s=(256 384 512)
-hdden2s=(256 384 512)
-learning_rates=(0.1 0.2 0.5 1.0 2.0 5.0 10.0) 
+hidden1s=(256 384)
+hdden2s=(256 384)
+learning_rates=(0.2 0.5 1.0 2.0 ) 
 betas=(0.2 0.5 1.0 2.0 5.0)
-mr=(0.5 1.0)
+# mr=(0.5 1.0)
 lam=(2.0 1.0)
 for beta in "${betas[@]}"; do
 for lr in "${learning_rates[@]}"; do
-for mr in "${mr[@]}"; do
+# for mr in "${mr[@]}"; do
 for l in "${lam[@]}"; do
 for hidden1 in "${hidden1s[@]}"; do
 for hidden2 in "${hidden2s[@]}"; do
         # name="lr_${lr}_beta_${beta}"
         name="lr_${lr}_beta_${beta}_mr_${mr}_lam_${l}"_h1_${hidden1}"_h2_${hidden2}"
-        srun -N 1 -n 1 -c 6 -o $name.out --open-mode=append ./main_wrapper.sh --output-dir $name  --learning-rate $lr --beta $beta --mr $mr --lam $l --hidden1-size $hidden1 --hidden2-size $hidden2 --batch-dim 200 --init zeros --n-iters 2000 &
+        srun -N 1 -n 1 -c 6 -o $name.out --open-mode=append ./main_wrapper.sh --output-dir $name --learning-rate $lr --beta $beta --mr 0.5 --lam $l --hidden1-size $hidden1 --hidden2-size $hidden2 --init zeros &
         # python3 -u main.py --learning-rate $lr --beta $beta --input-size 784 --output-size 10 --batch-dim 50 --init random --n-iters 3000 >> results.txt 
 done
-done
+# done
 done
 done
 done
