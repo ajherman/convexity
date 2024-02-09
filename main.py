@@ -418,7 +418,7 @@ for epoch in range(n_epochs):
 
         plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
 
-        for i,layer in enumerate([h1_test,h2_test,y_test]):
+        for i,layer in enumerate([x_test,h1_blowup,h2_blowup,y_blowup]):
             plt.subplot(2, 2, i+1)
             visualize_clusters(layer, colors, 0.01, 'Layer '+str(i), 50)
 
