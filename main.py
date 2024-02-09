@@ -336,7 +336,7 @@ for epoch in range(n_epochs):
 
     print("Tests after randomizing internal state")
     error = (y_blowup-target_test).pow(2).sum(dim=1).mean()
-    prediction = torch.argmax(y_free, dim=1)
+    prediction = torch.argmax(y_blowup, dim=1)
     accuracy = torch.mean((prediction==t_test).float())
     print("Test error: ",error.item())
     print("Test accuracy: ",accuracy.item())
