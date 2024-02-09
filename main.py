@@ -306,13 +306,13 @@ for epoch in range(n_epochs):
     print("Testing time: ",int((time.time()-tic)/60)," minutes")
 #####################################################################################################        
 
-    print("")
-    print("Max y val: ",torch.max(y_blowup))
-    print("Min y val: ",torch.min(y_blowup))
-    print("Max h1 val: ",torch.max(h1_blowup))
-    print("Min h1 val: ",torch.min(h1_blowup))
-    print("Max h2 val: ",torch.max(h2_blowup))
-    print("Min h2 val: ",torch.min(h2_blowup))
+    # print("")
+    # print("Max y val: ",torch.max(y_blowup))
+    # print("Min y val: ",torch.min(y_blowup))
+    # print("Max h1 val: ",torch.max(h1_blowup))
+    # print("Min h1 val: ",torch.min(h1_blowup))
+    # print("Max h2 val: ",torch.max(h2_blowup))
+    # print("Min h2 val: ",torch.min(h2_blowup))
 
     # TSNE code
     if args.make_tsne and (epoch+1)%2 == 0:
