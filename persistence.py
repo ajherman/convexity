@@ -174,11 +174,39 @@ for epoch in range(n_epochs):
             model.b1.weight.data += learning_rate * b1_update
             model.b2.weight.data += learning_rate * b2_update
             model.b3.weight.data += learning_rate * b3_update
+        else:
+            print("Check if x1 is learning t1...")
+            sample_error = (y_free-target).pow(2).sum(dim=1).mean()
+            sample_errors.append(sample_error.item())
+            print("MSE: ",sample_error.item())
+            prediction = torch.argmax(y_free, dim=1)
+            accuracy = torch.mean((prediction==t).float())
+            # if accuracy < 0.5:
+            #     assert(0)   # Kill if not learning
+            print("Accuracy: ",accuracy.item())
 
         # Starting from previous state (either after nudge or free phase)
-        h1_free, h2_free, y_free, phase3_energies = minimizeEnergy(model,free_steps,optimizer,x2,h1,h2,y,print_energy=False)
+        if (itr+1)%(n_iters//print_frequency) != 0:
+            h1_nudge, h2_nudge, y_nudge, phase4_energies = minimizeEnergy(model,nudge_steps,optimizer,x2,h1,h2,y,target=target,print_energy=False)
+            # Calculate the weight updates
+            w1_update = (x2.t() @ h1_nudge - 0*x2.t() @ h1_free)/(beta*batch_dim)
+            w2_update = (h1_nudge.t() @ h2_nudge - 0*h1_free.t() @ h2_free)/(beta*batch_dim)
+            w3_update = (h2_nudge.t() @ y_nudge - 0*h2_free.t() @ y_free)/(beta*batch_dim)
+            b1_update = (h1_nudge - 0*h1_free).sum(0)/(beta*batch_dim)
+            b2_update = (h2_nudge - 0*h2_free).sum(0)/(beta*batch_dim)
+            b3_update = (y_nudge - 0*y_free).sum(0)/(beta*batch_dim)
 
-        if (itr+1)%(n_iters//print_frequency) == 0:
+            # Update the weights
+            model.w1.weight.data += learning_rate * w1_update
+            model.w2.weight.data += learning_rate * w2_update
+            model.w3.weight.data += learning_rate * w3_update
+            model.b1.weight.data += learning_rate * b1_update
+            model.b2.weight.data += learning_rate * b2_update
+            model.b3.weight.data += learning_rate * b3_update
+            
+        else:
+            print("Check actual learning on x2...")
+            h1_free, h2_free, y_free, phase3_energies = minimizeEnergy(model,free_steps,optimizer,x2,h1,h2,y,print_energy=False)
             print("\nIteration: ",itr+1)
             sample_error = (y_free-target).pow(2).sum(dim=1).mean()
             sample_errors.append(sample_error.item())
@@ -190,33 +218,33 @@ for epoch in range(n_epochs):
             print("Accuracy: ",accuracy.item())
 
         # Nudge phase
-        h1_nudge, h2_nudge, y_nudge, phase4_energies = minimizeEnergy(model,nudge_steps,optimizer,x2,h1,h2,y,target=target,print_energy=False)
-        energies = phase1_energies + phase2_energies + phase3_energies + phase4_energies
+        # h1_nudge, h2_nudge, y_nudge, phase4_energies = minimizeEnergy(model,nudge_steps,optimizer,x2,h1,h2,y,target=target,print_energy=False)
+        # energies = phase1_energies + phase2_energies + phase3_energies + phase4_energies
         
-        # Calculate the weight updates
-        w1_update = (x2.t() @ h1_nudge - x2.t() @ h1_free)/(beta*batch_dim)
-        w2_update = (h1_nudge.t() @ h2_nudge - h1_free.t() @ h2_free)/(beta*batch_dim)
-        w3_update = (h2_nudge.t() @ y_nudge - h2_free.t() @ y_free)/(beta*batch_dim)
-        b1_update = (h1_nudge - h1_free).sum(0)/(beta*batch_dim)
-        b2_update = (h2_nudge - h2_free).sum(0)/(beta*batch_dim)
-        b3_update = (y_nudge - y_free).sum(0)/(beta*batch_dim)
+        # # Calculate the weight updates
+        # w1_update = (x2.t() @ h1_nudge - x2.t() @ h1_free)/(beta*batch_dim)
+        # w2_update = (h1_nudge.t() @ h2_nudge - h1_free.t() @ h2_free)/(beta*batch_dim)
+        # w3_update = (h2_nudge.t() @ y_nudge - h2_free.t() @ y_free)/(beta*batch_dim)
+        # b1_update = (h1_nudge - h1_free).sum(0)/(beta*batch_dim)
+        # b2_update = (h2_nudge - h2_free).sum(0)/(beta*batch_dim)
+        # b3_update = (y_nudge - y_free).sum(0)/(beta*batch_dim)
 
-        # Update the weights
-        model.w1.weight.data += learning_rate * w1_update
-        model.w2.weight.data += learning_rate * w2_update
-        model.w3.weight.data += learning_rate * w3_update
-        model.b1.weight.data += learning_rate * b1_update
-        model.b2.weight.data += learning_rate * b2_update
-        model.b3.weight.data += learning_rate * b3_update
+        # # Update the weights
+        # model.w1.weight.data += learning_rate * w1_update
+        # model.w2.weight.data += learning_rate * w2_update
+        # model.w3.weight.data += learning_rate * w3_update
+        # model.b1.weight.data += learning_rate * b1_update
+        # model.b2.weight.data += learning_rate * b2_update
+        # model.b3.weight.data += learning_rate * b3_update
 
-        if (itr+1)%200 == 0:
-            # Plot the energies
-            plt.plot(energies,label=str(itr))
-            plt.xlabel('Step')
-            plt.ylabel('Energy')
-            plt.title('Energy vs. Step')
-            plt.legend()
-            plt.savefig('energy_vs_step.png')
+        # if (itr+1)%200 == 0:
+        #     # Plot the energies
+        #     plt.plot(energies,label=str(itr))
+        #     plt.xlabel('Step')
+        #     plt.ylabel('Energy')
+        #     plt.title('Energy vs. Step')
+        #     plt.legend()
+        #     plt.savefig('energy_vs_step.png')
 
         if (itr+1)%(n_iters//print_frequency) == 0:
             # Plot the error
