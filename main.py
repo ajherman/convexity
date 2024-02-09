@@ -61,7 +61,7 @@ if args.dataset == "mnist":
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_dim, shuffle=True, num_workers=2)
     testset = torchvision.datasets.MNIST(root='~/datasets', train=False, download=True, transform=transform)
     testloader = torch.utils.data.DataLoader(testset, batch_size=test_batch_size, shuffle=False, num_workers=2)
-
+    loader = {'train':trainloader, 'test':testloader}
 # Define the fixed random input x
 elif args.dataset == "random":
     x = torch.randn(batch_dim,input_size)
@@ -112,7 +112,7 @@ print("Minimization rate: ",mr)
 print("Lambda: ",lam)
 print("\n")
 
-errors = []
+# errors = []
 
 h1 = torch.zeros(batch_dim, hidden1_size, requires_grad=True)
 h2 = torch.zeros(batch_dim, hidden2_size, requires_grad=True)
@@ -152,14 +152,14 @@ for epoch in range(n_epochs):
         if (itr+1)%(n_iters//print_frequency) == 0:
             print("\nIteration: ",itr+1)
             # print("Output: ",y_free)
-            error = (y_free-target).pow(2).sum(dim=1).mean()
-            print("MSE: ",error.item())
+            sample_error = (y_free-target).pow(2).sum(dim=1).mean()
+            print("MSE: ",sample_error.item())
             prediction = torch.argmax(y_free, dim=1)
             accuracy = torch.mean((prediction==t).float())
             if accuracy < 0.5:
                 assert(0)   # Kill if not learning
             print("Accuracy: ",accuracy.item())
-            errors.append(error.item())
+            # errors.append(sample_error.item())
 
         # Nudge phase
         h1_nudge, h2_nudge, y_nudge, phase2_energy = minimizeEnergy(model,nudge_steps,optimizer,x,h1,h2,y,target=target,print_energy=False)
@@ -190,48 +190,51 @@ for epoch in range(n_epochs):
             plt.title('Energy vs. Step')
             plt.legend()
             plt.savefig('energy_vs_step.png')
-        if (itr+1)%(n_iters//print_frequency) == 0:
-            # Plot the error
-            plt.figure()
-            plt.plot(errors)
-            plt.xlabel('Iteration')
-            plt.ylabel('MSE')
-            plt.title('MSE vs. Iteration\nbeta: '+str(beta)+'\nlearning_rate: '+str(learning_rate)+'\nMSE: '+str(errors[-1]))
-            plt.savefig('error_vs_iteration_beta_'+str(beta)+'_lr_'+str(learning_rate)+'.png')
-            plt.close()
+        # if (itr+1)%(n_iters//print_frequency) == 0:
+        #     # Plot the error
+        #     plt.figure()
+        #     plt.plot(errors)
+        #     plt.xlabel('Iteration')
+        #     plt.ylabel('MSE')
+        #     plt.title('MSE vs. Iteration\nbeta: '+str(beta)+'\nlearning_rate: '+str(learning_rate)+'\nMSE: '+str(errors[-1]))
+        #     plt.savefig('error_vs_iteration_beta_'+str(beta)+'_lr_'+str(learning_rate)+'.png')
+        #     plt.close()
 
     # Testing (regular)
     ######################################################################################################
-    test_errors, test_accuracies = [],[]
-    for itr,batch in enumerate(testloader):
-        x_test,t_test = batch
-        target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
-        if args.test_init == "zeros":
-            h1.data.zero_()
-            h2.data.zero_()
-            y.data.zero_()
-        elif args.test_init == "random":
-            h1.data.uniform_(0,1)
-            h2.data.uniform_(0,1)
-            y.data.uniform_(0,1)
-        elif args.test_init == "previous":
-            pass
-        else:
-            raise ValueError("Invalid initialization method")
-        
-        h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
-        error = (y_free-target_test).pow(2).sum(dim=1).mean()
-        prediction = torch.argmax(y_free, dim=1)
-        accuracy = torch.mean((prediction==t_test).float())
-        test_errors.append(error.item())
-        test_accuracies.append(accuracy.item())
-    print("Test accuracy: ",np.mean(test_accuracies))
-    print("Test MSE: ",np.mean(test_errors))
+    for split in ['train','test']:
+        errors, accuracies = {'train':[],'test':[]}
+        for itr,batch in enumerate(loader[split]):
+            x_test,t_test = batch
+            target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
+            if args.test_init == "zeros":
+                h1.data.zero_()
+                h2.data.zero_()
+                y.data.zero_()
+            elif args.test_init == "random":
+                h1.data.uniform_(0,1)
+                h2.data.uniform_(0,1)
+                y.data.uniform_(0,1)
+            elif args.test_init == "previous":
+                pass
+            else:
+                raise ValueError("Invalid initialization method")
+            h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
+            error = (y_free-target_test).pow(2).sum(dim=1).mean()
+            prediction = torch.argmax(y_free, dim=1)
+            accuracy = torch.mean((prediction==t_test).float())
+            errors[split].append(error.item())
+            accuracies[split].append(accuracy.item())
+        mean_error = np.mean(errors[split])
+        mean_accuracy = np.mean(accuracies[split])
+        print("Split: ",split)
+        print("Accuracy: ",mean_accuracy)
+        print("MSE: ",mean_error)
 
     # Write test error to CSV file
     with open(output_file+'.csv', 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([epoch,np.mean(test_errors)])
+        writer.writerow([np.mean(errors['train']),np.mean(accuracies['train']),np.mean(errors['test']),np.mean(accuracies['test'])])
 
 ###############################################################################################
 ##################
@@ -257,14 +260,19 @@ for epoch in range(n_epochs):
     permutation = True
     if permutation: # Get permuted settled states
         # Init internal state as in training
-        if args.test_init == "zeros":
+        if args.train_init == "zeros":
             h1.data.zero_()
             h2.data.zero_()
             y.data.zero_()
-        elif args.test_init == "random":
+        elif args.train_init == "random":
             h1.data.uniform_(0,1)
             h2.data.uniform_(0,1)
             y.data.uniform_(0,1)
+        elif args.train_init == "previous":
+            pass
+        else:
+            raise ValueError("Invalid initialization method")
+        
         # Run model
         h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
         # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
