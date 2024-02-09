@@ -91,6 +91,7 @@ def minimizeEnergy(model,steps,optimizer,x,h1,h2,y,target=None,print_energy=Fals
         y.data = torch.clamp(y.data, 0, 1)
 
         energies.append(energy.item())  # Save the energy value
+
     # Save copy of the internal state variables
     h1_free = h1.detach().clone()
     h2_free = h2.detach().clone()
@@ -98,7 +99,6 @@ def minimizeEnergy(model,steps,optimizer,x,h1,h2,y,target=None,print_energy=Fals
 
     return h1_free, h2_free, y_free, energies
 
-# Optimization loop
 print("\n\n")
 print("Beta: ",beta)
 print("Learning rate: ",learning_rate)
@@ -116,8 +116,7 @@ print("Minimization rate: ",mr)
 print("Lambda: ",lam)
 print("\n")
 
-# errors = []
-
+# Initialize the internal state variables
 h1 = torch.zeros(batch_dim, hidden1_size, requires_grad=True)
 h2 = torch.zeros(batch_dim, hidden2_size, requires_grad=True)
 y = torch.zeros(batch_dim, output_size, requires_grad=True)
@@ -155,7 +154,6 @@ for epoch in range(n_epochs):
 
         if (itr+1)%(n_iters//print_frequency) == 0:
             print("\nIteration: ",itr+1)
-            # print("Output: ",y_free)
             sample_error = (y_free-target).pow(2).sum(dim=1).mean()
             print("MSE: ",sample_error.item())
             prediction = torch.argmax(y_free, dim=1)
@@ -163,7 +161,6 @@ for epoch in range(n_epochs):
             if accuracy < 0.5:
                 assert(0)   # Kill if not learning
             print("Accuracy: ",accuracy.item())
-            # errors.append(sample_error.item())
 
         # Nudge phase
         h1_nudge, h2_nudge, y_nudge, phase2_energy = minimizeEnergy(model,nudge_steps,optimizer,x,h1,h2,y,target=target,print_energy=False)
@@ -258,7 +255,7 @@ for epoch in range(n_epochs):
     # Write test error to CSV file
     with open(args.output_dir+'/results.csv', 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([np.mean(errors['train']),np.mean(accuracies['train']),np.mean(errors['test']),np.mean(accuracies['test'])])
+        writer.writerow([epoch,np.mean(errors['train']),np.mean(accuracies['train']),np.mean(errors['test']),np.mean(accuracies['test'])])
 
 # ###############################################################################################
 ##################
@@ -267,11 +264,6 @@ for epoch in range(n_epochs):
         
     # Get a small batch
     if args.dataset == "mnist":
-        # for itr,batch in enumerate(testloader): # MNIST
-        #     if np.random.random()<0.05: # Get some variance in which batch we use (improve this)
-        #         x_test,t_test = batch
-        #         target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
-        #         break
         idx = np.random.randint(1000)
         x_test,t_test = train_x[idx:idx+test_batch_size], train_t[idx:idx+test_batch_size]
     # elif args.dataset == "random":
@@ -285,32 +277,7 @@ for epoch in range(n_epochs):
     # Expand dataset and internal state variables
     permutation = True
     if permutation: # Get permuted settled states
-        # # Init internal state as in training
-        # if args.train_init == "zeros":
-        #     h1.data.zero_()
-        #     h2.data.zero_()
-        #     y.data.zero_()
-        # elif args.train_init == "random":
-        #     h1.data.uniform_(0,1)
-        #     h2.data.uniform_(0,1)
-        #     y.data.uniform_(0,1)
-        # elif args.train_init == "previous":
-        #     pass
-        # else:
-        #     raise ValueError("Invalid initialization method")
-        
-        # # Run model
-        # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
-        # # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
-
-
-        # perm = [i for i in range(test_batch_size*n_samples)]
         perm = torch.randperm(test_batch_size * n_samples)
-
-        # h1_test = h1_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-        # h2_test = h2_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-        # y_test = y_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-
         x_test = train_x[idx:idx+test_batch_size].repeat(n_samples,1).clone()
         h1_test = train_h1[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone().requires_grad_(True)
         h2_test = train_h2[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone().requires_grad_(True)
@@ -324,11 +291,6 @@ for epoch in range(n_epochs):
         y_test = torch.rand(test_batch_size*n_samples, output_size, requires_grad=True)
         target_test = train_target[idx:idx+test_batch_size].repeat(n_samples, 1).clone()
         t_test = train_t[idx:idx+test_batch_size].repeat(n_samples).clone()
-
-    # Expand dataset
-    # x_test = x_test.repeat(n_samples,1).clone()
-    # target_test = target_test.repeat(n_samples,1).clone()
-    # t_test = t_test.repeat(n_samples).clone()
 
     # Test error / accuracy
     test_optimizer = optim.SGD([h1_test, h2_test, y_test], lr=mr)
@@ -354,14 +316,7 @@ for epoch in range(n_epochs):
     if args.make_tsne and epoch%5 == 0:
         from sklearn.manifold import TSNE
 
-        # Plot 1
-
-        colors = train_t
-        # colors = t_test # [t_test[i % batch_dim] for i in range(4 * n_samples)]  # Example color vector
-        # colors = [i%test_batch_size for i in range(test_batch_size*n_samples)]
-        cmap = plt.get_cmap('tab10') #cm.get_cmap('viridis')
-        # s, alpha = 2, 1.0
-        def visualize_clusters(layer, colors, std, title, perplexity, cmap=cmap, s=2, alpha=0.1):
+        def visualize_clusters(layer, title, colors=None, std=0.01, perplexity=30, cmap='tab10', s=2, alpha=0.1):
             noise = std * torch.randn(layer.shape)
             noisy_layer = layer + noise
             X_embedded = TSNE(n_components=2, perplexity=perplexity).fit_transform(noisy_layer.numpy())
@@ -369,79 +324,31 @@ for epoch in range(n_epochs):
             plt.title(title)
             plt.gca().set_aspect('equal')
 
+        # tSNE plot 1
         plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
 
         for i,layer in enumerate([train_x,train_h1,train_h2,train_y]):
             plt.subplot(2, 2, i+1)
-            visualize_clusters(layer, colors, 0.01, 'Layer '+str(i), 50)
+            visualize_clusters(layer,'Layer '+str(i), colors=train_t, perplexity=50)
 
-        # plt.subplot(2, 2, 1)
-        # # visualize_clusters(h1_free, colors, 0.01, 'hidden 1', 50)
-        # visualize_clusters(train_h1, colors, 0.01, 'hidden 1', 50)
-
-        # plt.subplot(2, 2, 2)
-        # # visualize_clusters(h2_free, colors, 0.01, 'hidden 2', 50)
-        # visualize_clusters(train_h2, colors, 0.01, 'hidden 2', 50)
-
-        # plt.subplot(2, 2, 3)
-        # # visualize_clusters(y_free, colors, 0.01, 'output', 50)
-        # visualize_clusters(train_y, colors, 0.01, 'output', 50)
-
-        # plt.subplot(2, 2, 4)
-        # # visualize_clusters(x_test, colors, 0.01, 'input', 50)
-        # visualize_clusters(train_x, colors, 0.01, 'input', 50)
-
+        cmap = plt.get_cmap('tab10') 
         legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
                         markerfacecolor=cmap(i), markersize=10) for i in range(10)]
         plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.suptitle('t-SNE Visualization of Clusters\n Training initialization: '+args.train_init+'\nAccuracy: '+str(100*accuracy.item())+'%\nMSE: '+str(error.item()))
-
         plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
         plt.savefig(args.output_dir+'/clusters1.png', bbox_inches='tight')
 
-
-        # Plot 2
-
-        plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
-
-        colors = t_test # [t_test[i % batch_dim] for i in range(4 * n_samples)]  # Example color vector
-        # colors = [i%test_batch_size for i in range(test_batch_size*n_samples)]
-        cmap = plt.get_cmap('tab10') #cm.get_cmap('viridis')
-        # s, alpha = 2, 1.0
-        def visualize_clusters(layer, colors, std, title, perplexity, cmap=cmap, s=2, alpha=0.1):
-            noise = std * torch.randn(layer.shape)
-            noisy_layer = layer + noise
-            X_embedded = TSNE(n_components=2, perplexity=perplexity).fit_transform(noisy_layer.numpy())
-            plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-            plt.title(title)
-            plt.gca().set_aspect('equal')
-
+        # tSNE plot 2
         plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
 
         for i,layer in enumerate([x_test,h1_blowup,h2_blowup,y_blowup]):
             plt.subplot(2, 2, i+1)
-            visualize_clusters(layer, colors, 0.01, 'Layer '+str(i), 50)
-
-        # plt.subplot(2, 2, 1)
-        # # visualize_clusters(h1_blowup, colors, 0.01, 'hidden 1', 50)
-        # visualize_clusters(train_h1, colors, 0.01, 'hidden 1', 50)
-
-        # plt.subplot(2, 2, 2)
-        # # visualize_clusters(h2_free, colors, 0.01, 'hidden 2', 50)
-        # visualize_clusters(train_h2, colors, 0.01, 'hidden 2', 50)
-
-        # plt.subplot(2, 2, 3)
-        # # visualize_clusters(y_free, colors, 0.01, 'output', 50)
-        # visualize_clusters(train_y, colors, 0.01, 'output', 50)
-
-        # plt.subplot(2, 2, 4)
-        # # visualize_clusters(x_test, colors, 0.01, 'input', 50)
-        # visualize_clusters(train_x, colors, 0.01, 'input', 50)
-
+            visualize_clusters(layer,'Layer '+str(i), colors=t_test, perplexity=50)
+        cmap = plt.get_cmap('tab10') 
         legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
                         markerfacecolor=cmap(i), markersize=10) for i in range(10)]
         plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.suptitle('t-SNE Visualization of Clusters\n Training initialization: '+args.train_init+'\nAccuracy: '+str(100*accuracy.item())+'%\nMSE: '+str(error.item()))
-
         plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
         plt.savefig(args.output_dir+'/clusters2.png', bbox_inches='tight')
