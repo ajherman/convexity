@@ -202,11 +202,11 @@ for epoch in range(n_epochs):
 
     # Testing (regular)
     ######################################################################################################
+    errors, accuracies = {'train':[],'test':[]}
     for split in ['train','test']:
-        errors, accuracies = {'train':[],'test':[]}
         for itr,batch in enumerate(loader[split]):
-            x_test,t_test = batch
-            target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
+            x,t = batch
+            target = torch.nn.functional.one_hot(t, num_classes=10)
             if args.test_init == "zeros":
                 h1.data.zero_()
                 h2.data.zero_()
@@ -219,10 +219,10 @@ for epoch in range(n_epochs):
                 pass
             else:
                 raise ValueError("Invalid initialization method")
-            h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
-            error = (y_free-target_test).pow(2).sum(dim=1).mean()
+            h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
+            error = (y_free-target).pow(2).sum(dim=1).mean()
             prediction = torch.argmax(y_free, dim=1)
-            accuracy = torch.mean((prediction==t_test).float())
+            accuracy = torch.mean((prediction==t).float())
             errors[split].append(error.item())
             accuracies[split].append(accuracy.item())
         mean_error = np.mean(errors[split])
