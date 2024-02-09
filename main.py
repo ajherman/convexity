@@ -202,7 +202,7 @@ for epoch in range(n_epochs):
 
     # Testing (regular)
     ######################################################################################################
-    errors, accuracies = {'train':[],'test':[]}
+    errors, accuracies = {'train':[],'test':[]}, {'train':[],'test':[]}
     for split in ['train','test']:
         for itr,batch in enumerate(loader[split]):
             x,t = batch
