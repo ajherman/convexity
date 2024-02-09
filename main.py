@@ -304,7 +304,7 @@ for epoch in range(n_epochs):
         accuracy = torch.mean((prediction==train_t[idx:idx+test_batch_size]).float())
         print("Test error: ",error.item())
         print("Test accuracy: ",accuracy.item())
-        
+
 ############################################################################################3
         # How often does a layer differ significantly from the original
         h1_diff = h1_blowup - train_h1[idx:idx+test_batch_size].repeat(n_samples, 1) # Diff between original settled state and settled state after randomizing
@@ -316,7 +316,7 @@ for epoch in range(n_epochs):
         h2_diff = h2_blowup - train_h2[idx:idx+test_batch_size].repeat(n_samples, 1) # Diff between original settled state and settled state after randomizing
         avg_h2_diff = torch.sum(h2_diff.pow(2),dim=1).mean()
         confused = (torch.sum(h2_diff.pow(2),dim=1) > 100*avg_h2_diff).float()
-        print("Avg MSE: ",avg_h2_diff.item()
+        print("Avg MSE: ",avg_h2_diff.item())
         print("h2 confusion: ",torch.mean(confused).item())
         
         y_diff = y_blowup - train_y[idx:idx+test_batch_size].repeat(n_samples, 1) # Diff between original settled state and settled state after randomizing
