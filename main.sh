@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=main
 #SBATCH --time 10:00:00
-#SBATCH -N 12
+#SBATCH -N 1
 #SBATCH -p shared-gpu
 #module load miniconda3
 #source activate /vast/home/ajherman/miniconda3/envs/pytorch
@@ -39,4 +39,4 @@
 # python3 -u main.py --learning-rate 0.1 --n-epoch 5 --hidden1-size 400 --hidden2-size 400 --output-file errors --make-tsne >> results.txt
 
 # python3 -u main.py --train-init previous --test-init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 5 --hidden1-size 384 --hidden2-size 256 --output-file errors --make-tsne >> results.txt
-srun -N 1 -n 1 -c 20 -o $name.out --open-mode=append ./main_wrapper.sh --train-init previous --test-init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 5 --hidden1-size 384 --hidden2-size 256 --output-file errors
+srun -N 1 -n 1 -c 20 -o results.out --open-mode=append ./main_wrapper.sh --train-init zeros --test-init zeros --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 5 --hidden1-size 384 --hidden2-size 256 --output-file errors
