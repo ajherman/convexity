@@ -158,7 +158,7 @@ for epoch in range(n_epochs):
             accuracy = torch.mean((prediction==t).float())
             if accuracy < 0.5:
                 assert(0)   # Kill if not learning
-            print("Accuracy: ",accuracy)
+            print("Accuracy: ",accuracy.item())
             errors.append(error.item())
 
         # Nudge phase
@@ -278,8 +278,8 @@ for epoch in range(n_epochs):
         print("Test accuracy: ",accuracy.item())
         print("")
 
-        perm = [i for i in range(test_batch_size*n_samples)]
-        # perm = torch.randperm(test_batch_size * n_samples)
+        # perm = [i for i in range(test_batch_size*n_samples)]
+        perm = torch.randperm(test_batch_size * n_samples)
 
         h1_test = h1_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
         h2_test = h2_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
