@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=main
 #SBATCH --time 10:00:00
-#SBATCH -N 5
+#SBATCH -N 4
 #SBATCH -p shared-gpu
 #module load miniconda3
 #source activate /vast/home/ajherman/miniconda3/envs/pytorch
@@ -43,4 +43,4 @@ srun -N 1 -n 1 -c 20 -o zero_zero.out --open-mode=append ./main_wrapper.sh --tra
 srun -N 1 -n 1 -c 20 -o zero_rand.out --open-mode=append ./main_wrapper.sh --train-init zeros --test-init random --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 100 --hidden1-size 384 --hidden2-size 256 --output-dir zero_rand --make-tsne &
 srun -N 1 -n 1 -c 20 -o zero_prev.out --open-mode=append ./main_wrapper.sh --train-init zeros --test-init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 100 --hidden1-size 384 --hidden2-size 256 --output-dir zero_prev --make-tsne &
 srun -N 1 -n 1 -c 20 -o prev_prev.out --open-mode=append ./main_wrapper.sh --train-init previous --test-init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 100 --hidden1-size 384 --hidden2-size 256 --output-dir prev_prev --make-tsne &
-srun -N 1 -n 1 -c 20 -o rand_prev.out --open-mode=append ./main_wrapper.sh --train-init random --test-init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 100 --hidden1-size 384 --hidden2-size 256 --output-dir rand_prev --make-tsne &
+# srun -N 1 -n 1 -c 20 -o rand_prev.out --open-mode=append ./main_wrapper.sh --train-init random --test-init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 100 --hidden1-size 384 --hidden2-size 256 --output-dir rand_prev --make-tsne &
