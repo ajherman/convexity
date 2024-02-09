@@ -133,11 +133,20 @@ optimizer = optim.SGD([h1, h2, y], lr=mr)
 for epoch in range(n_epochs):
     print("Epoch: ",epoch)
     for itr,batch in enumerate(trainloader): # MNIST
-        if args.dataset == "mnist":
-            x,t = batch
+        if itr%2==0:
+            if args.dataset == "mnist":
+                x1,t1 = batch
+            else:
+                pass # Use the fixed random batch
+            break
         else:
-            pass # Use the fixed random batch
+            if args.dataset == "mnist":
+                x2,t2 = batch
+            else:
+                pass # Use the fixed random batch
 
+        
+        t = torch.remainder(t1+t2,2)
         target = torch.nn.functional.one_hot(t, num_classes=10)
 
         # Initialize internal state variables
@@ -149,26 +158,30 @@ for epoch in range(n_epochs):
             h1.data.uniform_(0,1)
             h2.data.uniform_(0,1)
             y.data.uniform_(0,1)
-        elif args.init == "previous":
-            pass
         else:
             raise ValueError("Invalid initialization method")
-
-        # optimizer = optim.SGD([h1, h2, y], lr=mr)
         
-        h1_free, h2_free, y_free, phase1_energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
+        # Phase 1
+        h1_free, h2_free, y_free, phase1_energies = minimizeEnergy(model,free_steps,optimizer,x1,h1,h2,y,print_energy=False)
+
+        # Phase 2
+        h1_free, h2_free, y_free, phase2_energies = minimizeEnergy(model,free_steps,optimizer,x2,h1,h2,y,print_energy=False)
+
+        # Phase 3
+        h1_free, h2_free, y_free, phase3_energies = minimizeEnergy(model,free_steps,optimizer,x1,h1,h2,y,target=target,print_energy=False)
+
 
         if (itr+1)%(n_iters//print_frequency) == 0:
             print("\nIteration: ",itr+1)
             # print("Output: ",y_free)
-            error = (y_free-target).pow(2).sum(dim=1).mean()
-            print("MSE: ",error.item())
+            print("Error: ",(y_free-target).pow(2).sum())
             prediction = torch.argmax(y_free, dim=1)
             accuracy = torch.mean((prediction==t).float())
             if accuracy < 0.5:
                 assert(0)   # Kill if not learning
             print("Accuracy: ",accuracy)
-            errors.append(error.item())
+
+        errors.append((y_free-target).pow(2).sum())
 
         h1_nudge, h2_nudge, y_nudge, phase2_energy = minimizeEnergy(model,nudge_steps,optimizer,x,h1,h2,y,target=target,print_energy=False)
         energies = phase1_energies + phase2_energy
@@ -181,16 +194,6 @@ for epoch in range(n_epochs):
         b1_update = (h1_nudge - h1_free).sum(0)/(beta*batch_dim)
         b2_update = (h2_nudge - h2_free).sum(0)/(beta*batch_dim)
         b3_update = (y_nudge - y_free).sum(0)/(beta*batch_dim)
-
-        # # Print L2 norm of weight updates
-        # if (itr+1)%(n_iters//print_frequency) == 0:
-        #     print("")
-        #     print("L2 norm of weight updates (w1):", torch.norm(w1_update).item())
-        #     print("L2 norm of weight updates (w2):", torch.norm(w2_update).item())
-        #     print("L2 norm of weight updates (w3):", torch.norm(w3_update).item())
-        #     print("L2 norm of weight updates (b1):", torch.norm(b1_update).item())
-        #     print("L2 norm of weight updates (b2):", torch.norm(b2_update).item())
-        #     print("L2 norm of weight updates (b3):", torch.norm(b3_update).item())
 
         # Update the weights
         model.w1.weight.data += learning_rate * w1_update
@@ -213,145 +216,136 @@ for epoch in range(n_epochs):
             plt.figure()
             plt.plot(errors)
             plt.xlabel('Iteration')
-            plt.ylabel('MSE')
-            plt.title('MSE vs. Iteration\nbeta: '+str(beta)+'\nlearning_rate: '+str(learning_rate)+'\nMSE: '+str(errors[-1]))
+            plt.ylabel('Error')
+            plt.title('Error vs. Iteration\nbeta: '+str(beta)+'\nlearning_rate: '+str(learning_rate)+'\nError: '+str(errors[-1]))
             plt.savefig('error_vs_iteration_beta_'+str(beta)+'_lr_'+str(learning_rate)+'.png')
             plt.close()
 
-    # Testing
-    ######################################################################################################
-    test_errors, test_accuracies = [],[]
-    for itr,batch in enumerate(testloader):
-        x_test,t_test = batch
-        target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
-        if args.init == "zeros":
-            h1.data.zero_()
-            h2.data.zero_()
-            y.data.zero_()
-        elif args.init == "random":
-            h1.data.uniform_(0,1)
-            h2.data.uniform_(0,1)
-            y.data.uniform_(0,1)
-        h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
-        error = (y_free-target_test).pow(2).sum(dim=1).mean()
-        prediction = torch.argmax(y_free, dim=1)
-        accuracy = torch.mean((prediction==t_test).float())
-        test_errors.append(error.item())
-        test_accuracies.append(accuracy.item())
-    print("Test accuracy: ",np.mean(test_accuracies))
-    print("Test error: ",np.mean(test_errors))
+#     # Testing
+#     ######################################################################################################
+#     test_errors, test_accuracies = [],[]
+#     for itr,batch in enumerate(testloader):
+#         x_test,t_test = batch
+#         target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
+#         if args.init == "zeros":
+#             h1.data.zero_()
+#             h2.data.zero_()
+#             y.data.zero_()
+#         elif args.init == "random":
+#             h1.data.uniform_(0,1)
+#             h2.data.uniform_(0,1)
+#             y.data.uniform_(0,1)
+#         h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
+#         error = (y_free-target_test).pow(2).sum()
+#         prediction = torch.argmax(y_free, dim=1)
+#         accuracy = torch.mean((prediction==t_test).float())
+#         test_errors.append(error.item())
+#         test_accuracies.append(accuracy.item())
+#     print("Test accuracy: ",np.mean(test_accuracies))
+#     print("Test error: ",np.mean(test_errors))
 
-    # Write test error to CSV file
-    with open(output_file+'.csv', 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow([epoch,np.mean(test_errors)])
+#     # Write test error to CSV file
+#     with open(output_file+'.csv', 'a', newline='') as csvfile:
+#         writer = csv.writer(csvfile)
+#         # writer.writerow(['Test Error'])
+#         writer.writerow([epoch,np.mean(test_errors)])
 
-###############################################################################################
+# ###############################################################################################
 
-    if args.make_tsne and epoch%2==0:
-        if args.dataset == "mnist":
-            for itr,batch in enumerate(testloader): # MNIST
-                if np.random.random()<0.1: # Get some variance in which batch we use (improve this)
-                    x_test,t_test = batch
-                    target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
-                    break
-        elif args.dataset == "random":
-            x_test, t_test, target_test = x, t, target
-        else:
-            raise ValueError("Invalid dataset")
+#     if args.make_tsne and epoch%2==0:
+#         if args.dataset == "mnist":
+#             for itr,batch in enumerate(testloader): # MNIST
+#                 if np.random.random()<0.1: # Get some variance in which batch we use (improve this)
+#                     x_test,t_test = batch
+#                     target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
+#                     break
+#         elif args.dataset == "random":
+#             x_test, t_test, target_test = x, t, target
+#         else:
+#             raise ValueError("Invalid dataset")
         
-        # Generate random batch of points
-        n_samples = 1000
+#         # Generate random batch of points
+#         n_samples = 1000
 
 
-##############################################################################
-        permutation = True
-        if permutation: # Get permuted settled states
-            # Init internal state as in training
-            if args.init == "zeros":
-                h1.data.zero_()
-                h2.data.zero_()
-                y.data.zero_()
-            elif args.init == "random":
-                h1.data.uniform_(0,1)
-                h2.data.uniform_(0,1)
-                y.data.uniform_(0,1)
-            # Run model
-            h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
-            # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
-            h1_test = h1_free.repeat(n_samples,1).clone()
-            h2_test = h2_free.repeat(n_samples,1).clone()
-            y_test = y_free.repeat(n_samples,1).clone()
+# ##############################################################################
+#         permutation = True
+#         if permutation: # Get permuted settled states
+#             # Init internal state as in training
+#             if args.init == "zeros":
+#                 h1.data.zero_()
+#                 h2.data.zero_()
+#                 y.data.zero_()
+#             elif args.init == "random":
+#                 h1.data.uniform_(0,1)
+#                 h2.data.uniform_(0,1)
+#                 y.data.uniform_(0,1)
+#             # Run model
+#             h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
+#             # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
+#             h1_test = h1_free.repeat(n_samples,1).clone()
+#             h2_test = h2_free.repeat(n_samples,1).clone()
+#             y_test = y_free.repeat(n_samples,1).clone()
+#             # permutation = [i for i in range(test_batch_size*n_samples)]
+#             permutation = torch.randperm(test_batch_size * n_samples)
+#             h1_test = h1_test[permutation]
+#             h2_test = h2_test[permutation]
+#             y_test = y_test[permutation]
+#         else: # Original version with randomly initialize internal state
+#             h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
+#             h2_test = torch.rand(test_batch_size*n_samples, hidden2_size, requires_grad=True)
+#             y_test = torch.rand(test_batch_size*n_samples, output_size, requires_grad=True)
 
-            # permutation = [i for i in range(test_batch_size*n_samples)]
-            permutation = torch.randperm(test_batch_size * n_samples)
-            h1_test = h1_test[permutation]
-            h2_test = h2_test[permutation]
-            y_test = y_test[permutation]
-
-        else: # Original version with randomly initialize internal state
-            h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
-            h2_test = torch.rand(test_batch_size*n_samples, hidden2_size, requires_grad=True)
-            y_test = torch.rand(test_batch_size*n_samples, output_size, requires_grad=True)
-
-        # Expand dataset
-        x_test = x_test.repeat(n_samples,1).clone()
-        target_test = target_test.repeat(n_samples,1).clone()
-        t_test = t_test.repeat(n_samples).clone()
-##################################################################################
+#         # Expand dataset
+#         x_test = x_test.repeat(n_samples,1).clone()
+#         target_test = target_test.repeat(n_samples,1).clone()
+#         t_test = t_test.repeat(n_samples).clone()
+# ##################################################################################
 
 
-        test_optimizer = optim.SGD([h1_test, h2_test, y_test], lr=mr)
+#         test_optimizer = optim.SGD([h1_test, h2_test, y_test], lr=mr)
 
-        h1_free, h2_free, y_free, energies = minimizeEnergy(model,5*free_steps,test_optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
+#         h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,test_optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
 
-
-        print("Tests after randomizing internal state")
-        error = (y_free-target_test).pow(2).sum(dim=1).mean()
-        prediction = torch.argmax(y_free, dim=1)
-        accuracy = torch.mean((prediction==t_test).float())
-        print("Test error: ",error.item())
-        print("Test accuracy: ",accuracy.item())
-        print("")
-        print("Max y val: ",torch.max(y_free))
-        print("Min y val: ",torch.min(y_free))
-        print("Max h1 val: ",torch.max(h1_free))
-        print("Min h1 val: ",torch.min(h1_free))
-        print("Max h2 val: ",torch.max(h2_free))
-        print("Min h2 val: ",torch.min(h2_free))
+#         print("Max y val: ",torch.max(y_free))
+#         print("Min y val: ",torch.min(y_free))
+#         print("Max h1 val: ",torch.max(h1_free))
+#         print("Min h1 val: ",torch.min(h1_free))
+#         print("Max h2 val: ",torch.max(h2_free))
+#         print("Min h2 val: ",torch.min(h2_free))
  
-        from sklearn.manifold import TSNE
+#         from sklearn.manifold import TSNE
 
-        colors = t_test # [t_test[i % batch_dim] for i in range(4 * n_samples)]  # Example color vector
-        # colors = [i%test_batch_size for i in range(test_batch_size*n_samples)]
-        cmap = plt.get_cmap('tab10') #cm.get_cmap('viridis')
-        # s, alpha = 2, 1.0
-        def visualize_clusters(layer, colors, std, title, perplexity, cmap=cmap, s=2, alpha=0.1):
-            noise = std * torch.randn(layer.shape)
-            noisy_layer = layer + noise
-            X_embedded = TSNE(n_components=2, perplexity=perplexity).fit_transform(noisy_layer.numpy())
-            plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-            plt.title(title)
-            plt.gca().set_aspect('equal')
+#         colors = t_test # [t_test[i % batch_dim] for i in range(4 * n_samples)]  # Example color vector
+#         # colors = [i%test_batch_size for i in range(test_batch_size*n_samples)]
+#         cmap = plt.get_cmap('tab10') #cm.get_cmap('viridis')
+#         # s, alpha = 2, 1.0
+#         def visualize_clusters(layer, colors, std, title, perplexity, cmap=cmap, s=2, alpha=0.1):
+#             noise = std * torch.randn(layer.shape)
+#             noisy_layer = layer + noise
+#             X_embedded = TSNE(n_components=2, perplexity=perplexity).fit_transform(noisy_layer.numpy())
+#             plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+#             plt.title(title)
+#             plt.gca().set_aspect('equal')
 
-        plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
+#         plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
 
-        plt.subplot(2, 2, 1)
-        visualize_clusters(h1_free, colors, 0.01, 'hidden 1', 50)
+#         plt.subplot(2, 2, 1)
+#         visualize_clusters(h1_free, colors, 0.01, 'hidden 1', 50)
 
-        plt.subplot(2, 2, 2)
-        visualize_clusters(h2_free, colors, 0.01, 'hidden 2', 50)
+#         plt.subplot(2, 2, 2)
+#         visualize_clusters(h2_free, colors, 0.01, 'hidden 2', 50)
 
-        plt.subplot(2, 2, 3)
-        visualize_clusters(y_free, colors, 0.01, 'output', 50)
+#         plt.subplot(2, 2, 3)
+#         visualize_clusters(y_free, colors, 0.01, 'output', 50)
 
-        plt.subplot(2, 2, 4)
-        visualize_clusters(x_test, colors, 0.01, 'input', 50)
+#         plt.subplot(2, 2, 4)
+#         visualize_clusters(x_test, colors, 0.01, 'input', 50)
 
-        legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
-                        markerfacecolor=cmap(i), markersize=10) for i in range(10)]
-        plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.suptitle('t-SNE Visualization of Clusters\n Training initialization: '+args.init+'\nAccuracy: '+str(100*accuracy.item())+'%\nMSE: '+str(error.item()))
+#         legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
+#                         markerfacecolor=cmap(i), markersize=10) for i in range(10)]
+#         plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
+#         plt.suptitle('t-SNE Visualization of Clusters\n Training init: zeros')
 
-        plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
-        plt.savefig('clusters.png', bbox_inches='tight')
+#         plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
+#         plt.savefig('clusters.png', bbox_inches='tight')
