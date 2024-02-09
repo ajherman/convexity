@@ -37,4 +37,6 @@
 # srun -N 1 -n 1 -c 6 -o results.out --open-mode=append ./main_wrapper.sh  --learning-rate $lr --beta $beta --mr $mr --lam $l --input-size 784 --output-size 10 --hidden1-size 500 --hidden2-size 500 --batch-dim 200 --init zeros --n-iters 2000 &
 
 # python3 -u main.py --learning-rate 0.1 --n-epoch 5 --hidden1-size 400 --hidden2-size 400 --output-file errors --make-tsne >> results.txt
-python3 -u main.py --init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 5 --hidden1-size 384 --hidden2-size 256 --output-file errors --make-tsne >> results.txt
+
+# python3 -u main.py --train-init previous --test-init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 5 --hidden1-size 384 --hidden2-size 256 --output-file errors --make-tsne >> results.txt
+srun -N 1 -n 1 -c 20 -o $name.out --open-mode=append ./main_wrapper.sh --train-init previous --test-init previous --batch-dim 20 --learning-rate 2.0 --beta 5.0 --n-epoch 5 --hidden1-size 384 --hidden2-size 256 --output-file errors
