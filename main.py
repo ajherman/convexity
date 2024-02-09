@@ -182,14 +182,15 @@ for epoch in range(n_epochs):
         model.b2.weight.data += learning_rate * b2_update
         model.b3.weight.data += learning_rate * b3_update
 
-        if (itr+1)%(n_iters//20) == 0:
-            # Plot the energies
-            plt.plot(energies,label=str(itr))
-            plt.xlabel('Step')
-            plt.ylabel('Energy')
-            plt.title('Energy vs. Step')
-            plt.legend()
-            plt.savefig('energy_vs_step.png')
+        # if (itr+1)%200 == 0:
+        #     # Plot the energies
+        #     plt.plot(energies,label=str(itr))
+        #     plt.xlabel('Step')
+        #     plt.ylabel('Energy')
+        #     plt.title('Energy vs. Step')
+        #     plt.legend()
+        #     plt.savefig('energy_vs_step.png')
+
         # if (itr+1)%(n_iters//print_frequency) == 0:
         #     # Plot the error
         #     plt.figure()
@@ -203,6 +204,7 @@ for epoch in range(n_epochs):
     # Testing (regular)
     ######################################################################################################
     errors, accuracies = {'train':[],'test':[]}, {'train':[],'test':[]}
+    train_x, train_h1, train_h2, train_y, train_t = [], [], [], [], []
     for split in ['train','test']:
         for itr,batch in enumerate(loader[split]):
             x,t = batch
@@ -220,6 +222,15 @@ for epoch in range(n_epochs):
             else:
                 raise ValueError("Invalid initialization method")
             h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
+            
+            # Save internal state variables
+            if split == 'train':
+                train_x.append(x)
+                train_h1.append(h1_free)
+                train_h2.append(h2_free)
+                train_y.append(y_free)
+                train_t.append(t)
+
             error = (y_free-target).pow(2).sum(dim=1).mean()
             prediction = torch.argmax(y_free, dim=1)
             accuracy = torch.mean((prediction==t).float())
@@ -231,89 +242,96 @@ for epoch in range(n_epochs):
         print("Accuracy: ",mean_accuracy)
         print("MSE: ",mean_error)
 
+    # Save internal state variables
+    train_x = torch.cat(train_x)
+    train_h1 = torch.cat(train_h1)
+    train_h2 = torch.cat(train_h2)
+    train_y = torch.cat(train_y)
+    train_t = torch.cat(train_t)
+
     # Write test error to CSV file
     with open(output_file+'.csv', 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow([np.mean(errors['train']),np.mean(accuracies['train']),np.mean(errors['test']),np.mean(accuracies['test'])])
 
-###############################################################################################
-##################
-# Repeater testing
-##################
+# ###############################################################################################
+# ##################
+# # Repeater testing
+# ##################
         
-    # Get a small batch
-    if args.dataset == "mnist":
-        for itr,batch in enumerate(testloader): # MNIST
-            if np.random.random()<0.05: # Get some variance in which batch we use (improve this)
-                x_test,t_test = batch
-                target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
-                break
-    elif args.dataset == "random":
-        x_test, t_test, target_test = x, t, target
-    else:
-        raise ValueError("Invalid dataset")
+#     # Get a small batch
+#     if args.dataset == "mnist":
+#         for itr,batch in enumerate(testloader): # MNIST
+#             if np.random.random()<0.05: # Get some variance in which batch we use (improve this)
+#                 x_test,t_test = batch
+#                 target_test = torch.nn.functional.one_hot(t_test, num_classes=10)
+#                 break
+#     elif args.dataset == "random":
+#         x_test, t_test, target_test = x, t, target
+#     else:
+#         raise ValueError("Invalid dataset")
     
-    # Generate random batch of points
-    n_samples = 1000
+#     # Generate random batch of points
+#     n_samples = 1000
 
-    # Blowup
-    permutation = True
-    if permutation: # Get permuted settled states
-        # Init internal state as in training
-        if args.train_init == "zeros":
-            h1.data.zero_()
-            h2.data.zero_()
-            y.data.zero_()
-        elif args.train_init == "random":
-            h1.data.uniform_(0,1)
-            h2.data.uniform_(0,1)
-            y.data.uniform_(0,1)
-        elif args.train_init == "previous":
-            pass
-        else:
-            raise ValueError("Invalid initialization method")
+#     # Blowup
+#     permutation = True
+#     if permutation: # Get permuted settled states
+#         # Init internal state as in training
+#         if args.train_init == "zeros":
+#             h1.data.zero_()
+#             h2.data.zero_()
+#             y.data.zero_()
+#         elif args.train_init == "random":
+#             h1.data.uniform_(0,1)
+#             h2.data.uniform_(0,1)
+#             y.data.uniform_(0,1)
+#         elif args.train_init == "previous":
+#             pass
+#         else:
+#             raise ValueError("Invalid initialization method")
         
-        # Run model
-        h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
-        # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
+#         # Run model
+#         h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
+#         # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
 
-        # # Test error / accuracy
-        # print("\nThis should be comming out to the same as test error / acc above...")
-        # error = (y_free-target_test).pow(2).sum(dim=1).mean()
-        # prediction = torch.argmax(y_free, dim=1)
-        # accuracy = torch.mean((prediction==t_test).float())
-        # print("Test error: ",error.item())
-        # print("Test accuracy: ",accuracy.item())
-        # print("")
+#         # # Test error / accuracy
+#         # print("\nThis should be comming out to the same as test error / acc above...")
+#         # error = (y_free-target_test).pow(2).sum(dim=1).mean()
+#         # prediction = torch.argmax(y_free, dim=1)
+#         # accuracy = torch.mean((prediction==t_test).float())
+#         # print("Test error: ",error.item())
+#         # print("Test accuracy: ",accuracy.item())
+#         # print("")
 
-        # perm = [i for i in range(test_batch_size*n_samples)]
-        perm = torch.randperm(test_batch_size * n_samples)
+#         # perm = [i for i in range(test_batch_size*n_samples)]
+#         perm = torch.randperm(test_batch_size * n_samples)
 
-        h1_test = h1_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-        h2_test = h2_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-        y_test = y_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+#         h1_test = h1_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+#         h2_test = h2_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+#         y_test = y_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
 
-    else: # Original version with randomly initialize internal state
-        h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
-        h2_test = torch.rand(test_batch_size*n_samples, hidden2_size, requires_grad=True)
-        y_test = torch.rand(test_batch_size*n_samples, output_size, requires_grad=True)
+#     else: # Original version with randomly initialize internal state
+#         h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
+#         h2_test = torch.rand(test_batch_size*n_samples, hidden2_size, requires_grad=True)
+#         y_test = torch.rand(test_batch_size*n_samples, output_size, requires_grad=True)
 
-    # Expand dataset
-    x_test = x_test.repeat(n_samples,1).clone()
-    target_test = target_test.repeat(n_samples,1).clone()
-    t_test = t_test.repeat(n_samples).clone()
-##################################################################################
+#     # Expand dataset
+#     x_test = x_test.repeat(n_samples,1).clone()
+#     target_test = target_test.repeat(n_samples,1).clone()
+#     t_test = t_test.repeat(n_samples).clone()
+# ##################################################################################
 
-    # Test error / accuracy
-    test_optimizer = optim.SGD([h1_test, h2_test, y_test], lr=mr)
-    h1_free, h2_free, y_free, energies = minimizeEnergy(model,5*free_steps,test_optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
+#     # Test error / accuracy
+#     test_optimizer = optim.SGD([h1_test, h2_test, y_test], lr=mr)
+#     h1_free, h2_free, y_free, energies = minimizeEnergy(model,5*free_steps,test_optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
 
-    print("Tests after randomizing internal state")
-    error = (y_free-target_test).pow(2).sum(dim=1).mean()
-    prediction = torch.argmax(y_free, dim=1)
-    accuracy = torch.mean((prediction==t_test).float())
-    print("Test error: ",error.item())
-    print("Test accuracy: ",accuracy.item())
+#     print("Tests after randomizing internal state")
+#     error = (y_free-target_test).pow(2).sum(dim=1).mean()
+#     prediction = torch.argmax(y_free, dim=1)
+#     accuracy = torch.mean((prediction==t_test).float())
+#     print("Test error: ",error.item())
+#     print("Test accuracy: ",accuracy.item())
     print("")
     print("Max y val: ",torch.max(y_free))
     print("Min y val: ",torch.min(y_free))
@@ -326,7 +344,8 @@ for epoch in range(n_epochs):
     if args.make_tsne:
         from sklearn.manifold import TSNE
 
-        colors = t_test # [t_test[i % batch_dim] for i in range(4 * n_samples)]  # Example color vector
+        colors = train_t
+        # colors = t_test # [t_test[i % batch_dim] for i in range(4 * n_samples)]  # Example color vector
         # colors = [i%test_batch_size for i in range(test_batch_size*n_samples)]
         cmap = plt.get_cmap('tab10') #cm.get_cmap('viridis')
         # s, alpha = 2, 1.0
@@ -341,16 +360,20 @@ for epoch in range(n_epochs):
         plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
 
         plt.subplot(2, 2, 1)
-        visualize_clusters(h1_free, colors, 0.01, 'hidden 1', 50)
+        # visualize_clusters(h1_free, colors, 0.01, 'hidden 1', 50)
+        visualize_clusters(train_h1, colors, 0.01, 'hidden 1', 50)
 
         plt.subplot(2, 2, 2)
-        visualize_clusters(h2_free, colors, 0.01, 'hidden 2', 50)
+        # visualize_clusters(h2_free, colors, 0.01, 'hidden 2', 50)
+        visualize_clusters(train_h2, colors, 0.01, 'hidden 2', 50)
 
         plt.subplot(2, 2, 3)
-        visualize_clusters(y_free, colors, 0.01, 'output', 50)
+        # visualize_clusters(y_free, colors, 0.01, 'output', 50)
+        visualize_clusters(train_y, colors, 0.01, 'output', 50)
 
         plt.subplot(2, 2, 4)
-        visualize_clusters(x_test, colors, 0.01, 'input', 50)
+        # visualize_clusters(x_test, colors, 0.01, 'input', 50)
+        visualize_clusters(train_x, colors, 0.01, 'input', 50)
 
         legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
                         markerfacecolor=cmap(i), markersize=10) for i in range(10)]
