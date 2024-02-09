@@ -227,7 +227,7 @@ for epoch in range(n_epochs):
                 h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
                 
                 # Save internal state variables
-                if split == 'train':
+                if split == 'test':
                     train_x.append(x)
                     train_h1.append(h1_free)
                     train_h2.append(h2_free)
