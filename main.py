@@ -11,6 +11,7 @@ import torchvision.transforms as transforms
 import numpy as np
 import csv
 import os
+import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input-size", type=int, default=784, help="Size of the input")
@@ -261,7 +262,7 @@ for epoch in range(n_epochs):
 ##################
 # Repeater testing
 ##################
-        
+    tic = time.time()
     # Get a small batch
     if args.dataset == "mnist":
         idx = np.random.randint(1000)
@@ -302,6 +303,7 @@ for epoch in range(n_epochs):
     accuracy = torch.mean((prediction==t_test).float())
     print("Test error: ",error.item())
     print("Test accuracy: ",accuracy.item())
+    print("Testing time: ",int((time.time()-tic)/60)," minutes")
 #####################################################################################################        
 
     print("")
@@ -313,7 +315,8 @@ for epoch in range(n_epochs):
     print("Min h2 val: ",torch.min(h2_blowup))
 
     # TSNE code
-    if args.make_tsne and epoch%5 == 0:
+    if args.make_tsne and (epoch+1)%2 == 0:
+        tic = time.time()
         from sklearn.manifold import TSNE
 
         def visualize_clusters(layer, title, colors=None, std=0.01, perplexity=30, cmap='tab10', s=2, alpha=0.1):
@@ -352,3 +355,4 @@ for epoch in range(n_epochs):
         plt.suptitle('t-SNE Visualization of Clusters\n Training initialization: '+args.train_init+'\nAccuracy: '+str(100*accuracy.item())+'%\nMSE: '+str(error.item()))
         plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
         plt.savefig(args.output_dir+'/clusters2.png', bbox_inches='tight')
+        print("tSNE plot time: ",int((time.time()-tic)/60)," minutes")
