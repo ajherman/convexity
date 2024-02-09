@@ -278,15 +278,16 @@ for epoch in range(n_epochs):
         print("Test accuracy: ",accuracy.item())
         print("")
 
-        h1_test = h1_free.repeat(n_samples, 1).clone().requires_grad_(True)
-        h2_test = h2_free.repeat(n_samples, 1).clone().requires_grad_(True)
-        y_test = y_free.repeat(n_samples, 1).clone().requires_grad_(True)
+        perm = [i for i in range(test_batch_size*n_samples)]
+        # perm = torch.randperm(test_batch_size * n_samples)
 
-        permutation = [i for i in range(test_batch_size*n_samples)]
-        # permutation = torch.randperm(test_batch_size * n_samples)
-        h1_test = h1_test[permutation]
-        h2_test = h2_test[permutation]
-        y_test = y_test[permutation]
+        h1_test = h1_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+        h2_test = h2_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+        y_test = y_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+
+        # h1_test = h1_test[permutation]
+        # h2_test = h2_test[permutation]
+        # y_test = y_test[permutation]
 
     else: # Original version with randomly initialize internal state
         h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
