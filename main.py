@@ -277,14 +277,14 @@ for epoch in range(n_epochs):
         h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1,h2,y,print_energy=False)
         # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
 
-        # Test error / accuracy
-        print("\nThis should be comming out to the same as test error / acc above...")
-        error = (y_free-target_test).pow(2).sum(dim=1).mean()
-        prediction = torch.argmax(y_free, dim=1)
-        accuracy = torch.mean((prediction==t_test).float())
-        print("Test error: ",error.item())
-        print("Test accuracy: ",accuracy.item())
-        print("")
+        # # Test error / accuracy
+        # print("\nThis should be comming out to the same as test error / acc above...")
+        # error = (y_free-target_test).pow(2).sum(dim=1).mean()
+        # prediction = torch.argmax(y_free, dim=1)
+        # accuracy = torch.mean((prediction==t_test).float())
+        # print("Test error: ",error.item())
+        # print("Test accuracy: ",accuracy.item())
+        # print("")
 
         # perm = [i for i in range(test_batch_size*n_samples)]
         perm = torch.randperm(test_batch_size * n_samples)
@@ -292,10 +292,6 @@ for epoch in range(n_epochs):
         h1_test = h1_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
         h2_test = h2_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
         y_test = y_free.repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-
-        # h1_test = h1_test[permutation]
-        # h2_test = h2_test[permutation]
-        # y_test = y_test[permutation]
 
     else: # Original version with randomly initialize internal state
         h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
