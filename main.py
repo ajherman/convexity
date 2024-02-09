@@ -202,157 +202,156 @@ for epoch in range(n_epochs):
         #     plt.title('MSE vs. Iteration\nbeta: '+str(beta)+'\nlearning_rate: '+str(learning_rate)+'\nMSE: '+str(errors[-1]))
         #     plt.savefig('error_vs_iteration_beta_'+str(beta)+'_lr_'+str(learning_rate)+'.png')
         #     plt.close()
+    if (epoch+1)%5 == 0:
+        # Testing (regular)
+        ######################################################################################################
+        tic=time.time()
+        errors, accuracies = {'train':[],'test':[]}, {'train':[],'test':[]}
+        train_x, train_h1, train_h2, train_y, train_t, train_target = [], [], [], [], [], []
+        for split in ['train','test']:
+            for itr,batch in enumerate(loader[split]):
+                x,t = batch
+                target = torch.nn.functional.one_hot(t, num_classes=10)
+                if args.test_init == "zeros":
+                    h1.data.zero_()
+                    h2.data.zero_()
+                    y.data.zero_()
+                elif args.test_init == "random":
+                    h1.data.uniform_(0,1)
+                    h2.data.uniform_(0,1)
+                    y.data.uniform_(0,1)
+                elif args.test_init == "previous":
+                    pass
+                else:
+                    raise ValueError("Invalid initialization method")
+                h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
+                
+                # Save internal state variables
+                if split == 'train':
+                    train_x.append(x)
+                    train_h1.append(h1_free)
+                    train_h2.append(h2_free)
+                    train_y.append(y_free)
+                    train_t.append(t)
+                    train_target.append(target)
 
-    # Testing (regular)
-    ######################################################################################################
-    errors, accuracies = {'train':[],'test':[]}, {'train':[],'test':[]}
-    train_x, train_h1, train_h2, train_y, train_t, train_target = [], [], [], [], [], []
-    for split in ['train','test']:
-        for itr,batch in enumerate(loader[split]):
-            x,t = batch
-            target = torch.nn.functional.one_hot(t, num_classes=10)
-            if args.test_init == "zeros":
-                h1.data.zero_()
-                h2.data.zero_()
-                y.data.zero_()
-            elif args.test_init == "random":
-                h1.data.uniform_(0,1)
-                h2.data.uniform_(0,1)
-                y.data.uniform_(0,1)
-            elif args.test_init == "previous":
-                pass
-            else:
-                raise ValueError("Invalid initialization method")
-            h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
-            
-            # Save internal state variables
-            if split == 'train':
-                train_x.append(x)
-                train_h1.append(h1_free)
-                train_h2.append(h2_free)
-                train_y.append(y_free)
-                train_t.append(t)
-                train_target.append(target)
+                error = (y_free-target).pow(2).sum(dim=1).mean()
+                prediction = torch.argmax(y_free, dim=1)
+                accuracy = torch.mean((prediction==t).float())
+                errors[split].append(error.item())
+                accuracies[split].append(accuracy.item())
+            mean_error = np.mean(errors[split])
+            mean_accuracy = np.mean(accuracies[split])
+            print("Split: ",split)
+            print("Accuracy: ",mean_accuracy)
+            print("MSE: ",mean_error)
 
-            error = (y_free-target).pow(2).sum(dim=1).mean()
-            prediction = torch.argmax(y_free, dim=1)
-            accuracy = torch.mean((prediction==t).float())
-            errors[split].append(error.item())
-            accuracies[split].append(accuracy.item())
-        mean_error = np.mean(errors[split])
-        mean_accuracy = np.mean(accuracies[split])
-        print("Split: ",split)
-        print("Accuracy: ",mean_accuracy)
-        print("MSE: ",mean_error)
+        # Save internal state variables
+        train_x = torch.cat(train_x)
+        train_h1 = torch.cat(train_h1)
+        train_h2 = torch.cat(train_h2)
+        train_y = torch.cat(train_y)
+        train_t = torch.cat(train_t)
+        train_target = torch.cat(train_target)
 
-    # Save internal state variables
-    train_x = torch.cat(train_x)
-    train_h1 = torch.cat(train_h1)
-    train_h2 = torch.cat(train_h2)
-    train_y = torch.cat(train_y)
-    train_t = torch.cat(train_t)
-    train_target = torch.cat(train_target)
-
-    # Write test error to CSV file
-    with open(args.output_dir+'/results.csv', 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow([epoch,np.mean(errors['train']),np.mean(accuracies['train']),np.mean(errors['test']),np.mean(accuracies['test'])])
-
-# ###############################################################################################
-##################
-# Repeater testing
-##################
-    tic = time.time()
-    # Get a small batch
-    if args.dataset == "mnist":
-        idx = np.random.randint(1000)
-        x_test,t_test = train_x[idx:idx+test_batch_size], train_t[idx:idx+test_batch_size]
-    # elif args.dataset == "random":
-    #     x_test, t_test, target_test = x, t, target
-    else:
-        raise ValueError("Invalid dataset")
-    
-    # Generate random batch of points
-    n_samples = 1000
-
-    # Expand dataset and internal state variables
-    permutation = True
-    if permutation: # Get permuted settled states
-        perm = torch.randperm(test_batch_size * n_samples)
-        x_test = train_x[idx:idx+test_batch_size].repeat(n_samples,1).clone()
-        h1_test = train_h1[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-        h2_test = train_h2[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-        y_test = train_y[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone().requires_grad_(True)
-        target_test = train_target[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone()
-        t_test = train_t[idx:idx+test_batch_size].repeat(n_samples).clone()
-    else: # Original version with randomly initialize internal state
-        x_test = train_x[idx:idx+test_batch_size].repeat(n_samples,1).clone()
-        h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
-        h2_test = torch.rand(test_batch_size*n_samples, hidden2_size, requires_grad=True)
-        y_test = torch.rand(test_batch_size*n_samples, output_size, requires_grad=True)
-        target_test = train_target[idx:idx+test_batch_size].repeat(n_samples, 1).clone()
-        t_test = train_t[idx:idx+test_batch_size].repeat(n_samples).clone()
-
-    # Test error / accuracy
-    test_optimizer = optim.SGD([h1_test, h2_test, y_test], lr=mr)
-    h1_blowup, h2_blowup, y_blowup, energies = minimizeEnergy(model,5*free_steps,test_optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
-
-    print("Tests after randomizing internal state")
-    error = (y_blowup-target_test).pow(2).sum(dim=1).mean()
-    prediction = torch.argmax(y_blowup, dim=1)
-    accuracy = torch.mean((prediction==t_test).float())
-    print("Test error: ",error.item())
-    print("Test accuracy: ",accuracy.item())
-    print("Testing time: ",int((time.time()-tic)/60)," minutes")
-#####################################################################################################        
-
-    # print("")
-    # print("Max y val: ",torch.max(y_blowup))
-    # print("Min y val: ",torch.min(y_blowup))
-    # print("Max h1 val: ",torch.max(h1_blowup))
-    # print("Min h1 val: ",torch.min(h1_blowup))
-    # print("Max h2 val: ",torch.max(h2_blowup))
-    # print("Min h2 val: ",torch.min(h2_blowup))
-
-    # TSNE code
-    if args.make_tsne and (epoch+1)%2 == 0:
+        # Write test error to CSV file
+        with open(args.output_dir+'/results.csv', 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([epoch,np.mean(errors['train']),np.mean(accuracies['train']),np.mean(errors['test']),np.mean(accuracies['test'])])
+        print("Testing time: ",int((time.time()-tic)/60)," minutes")
+    # ###############################################################################################
+    ##################
+    # Repeater testing
+    ##################
         tic = time.time()
-        from sklearn.manifold import TSNE
+        # Get a small batch
+        if args.dataset == "mnist":
+            idx = np.random.randint(1000)
+            x_test,t_test = train_x[idx:idx+test_batch_size], train_t[idx:idx+test_batch_size]
+        # elif args.dataset == "random":
+        #     x_test, t_test, target_test = x, t, target
+        else:
+            raise ValueError("Invalid dataset")
+        
+        # Generate random batch of points
+        n_samples = 1000
 
-        def visualize_clusters(layer, title, colors=None, std=0.01, perplexity=30, cmap='tab10', s=2, alpha=0.1):
-            noise = std * torch.randn(layer.shape)
-            noisy_layer = layer + noise
-            X_embedded = TSNE(n_components=2, perplexity=perplexity).fit_transform(noisy_layer.numpy())
-            plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
-            plt.title(title)
-            plt.gca().set_aspect('equal')
+        # Expand dataset and internal state variables
+        permutation = True
+        if permutation: # Get permuted settled states
+            perm = torch.randperm(test_batch_size * n_samples)
+            x_test = train_x[idx:idx+test_batch_size].repeat(n_samples,1).clone()
+            h1_test = train_h1[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+            h2_test = train_h2[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+            y_test = train_y[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone().requires_grad_(True)
+            target_test = train_target[idx:idx+test_batch_size].repeat(n_samples, 1)[perm].clone()
+            t_test = train_t[idx:idx+test_batch_size].repeat(n_samples).clone()
+        else: # Original version with randomly initialize internal state
+            x_test = train_x[idx:idx+test_batch_size].repeat(n_samples,1).clone()
+            h1_test = torch.rand(test_batch_size*n_samples, hidden1_size, requires_grad=True)
+            h2_test = torch.rand(test_batch_size*n_samples, hidden2_size, requires_grad=True)
+            y_test = torch.rand(test_batch_size*n_samples, output_size, requires_grad=True)
+            target_test = train_target[idx:idx+test_batch_size].repeat(n_samples, 1).clone()
+            t_test = train_t[idx:idx+test_batch_size].repeat(n_samples).clone()
 
-        # tSNE plot 1
-        plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
+        # Test error / accuracy
+        test_optimizer = optim.SGD([h1_test, h2_test, y_test], lr=mr)
+        h1_blowup, h2_blowup, y_blowup, energies = minimizeEnergy(model,5*free_steps,test_optimizer,x_test,h1_test,h2_test,y_test,print_energy=False)
 
-        for i,layer in enumerate([train_x,train_h1,train_h2,train_y]):
-            plt.subplot(2, 2, i+1)
-            visualize_clusters(layer,'Layer '+str(i), colors=train_t, perplexity=50)
+        print("Tests after randomizing internal state")
+        error = (y_blowup-target_test).pow(2).sum(dim=1).mean()
+        prediction = torch.argmax(y_blowup, dim=1)
+        accuracy = torch.mean((prediction==t_test).float())
+        print("Test error: ",error.item())
+        print("Test accuracy: ",accuracy.item())
+    #####################################################################################################        
 
-        cmap = plt.get_cmap('tab10') 
-        legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
-                        markerfacecolor=cmap(i), markersize=10) for i in range(10)]
-        plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.suptitle('t-SNE Visualization of Clusters\n Training initialization: '+args.train_init+'\nAccuracy: '+str(100*accuracy.item())+'%\nMSE: '+str(error.item()))
-        plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
-        plt.savefig(args.output_dir+'/clusters1.png', bbox_inches='tight')
+        # print("")
+        # print("Max y val: ",torch.max(y_blowup))
+        # print("Min y val: ",torch.min(y_blowup))
+        # print("Max h1 val: ",torch.max(h1_blowup))
+        # print("Min h1 val: ",torch.min(h1_blowup))
+        # print("Max h2 val: ",torch.max(h2_blowup))
+        # print("Min h2 val: ",torch.min(h2_blowup))
 
-        # tSNE plot 2
-        plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
+        # TSNE code
+        if args.make_tsne:
+            from sklearn.manifold import TSNE
 
-        for i,layer in enumerate([x_test,h1_blowup,h2_blowup,y_blowup]):
-            plt.subplot(2, 2, i+1)
-            visualize_clusters(layer,'Layer '+str(i), colors=t_test, perplexity=50)
-        cmap = plt.get_cmap('tab10') 
-        legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
-                        markerfacecolor=cmap(i), markersize=10) for i in range(10)]
-        plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
-        plt.suptitle('t-SNE Visualization of Clusters\n Training initialization: '+args.train_init+'\nAccuracy: '+str(100*accuracy.item())+'%\nMSE: '+str(error.item()))
-        plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
-        plt.savefig(args.output_dir+'/clusters2.png', bbox_inches='tight')
-        print("tSNE plot time: ",int((time.time()-tic)/60)," minutes")
+            def visualize_clusters(layer, title, colors=None, std=0.01, perplexity=30, cmap='tab10', s=2, alpha=0.1):
+                noise = std * torch.randn(layer.shape)
+                noisy_layer = layer + noise
+                X_embedded = TSNE(n_components=2, perplexity=perplexity).fit_transform(noisy_layer.numpy())
+                plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=colors, s=s, alpha=alpha, cmap=cmap)
+                plt.title(title)
+                plt.gca().set_aspect('equal')
+
+            # tSNE plot 1
+            plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
+
+            for i,layer in enumerate([train_x,train_h1,train_h2,train_y]):
+                plt.subplot(2, 2, i+1)
+                visualize_clusters(layer,'Layer '+str(i), colors=train_t, perplexity=50)
+
+            cmap = plt.get_cmap('tab10') 
+            legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
+                            markerfacecolor=cmap(i), markersize=10) for i in range(10)]
+            plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
+            plt.suptitle('t-SNE Visualization of Clusters\n Training initialization: '+args.train_init+'\nAccuracy: '+str(100*accuracy.item())+'%\nMSE: '+str(error.item()))
+            plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
+            plt.savefig(args.output_dir+'/clusters1.png', bbox_inches='tight')
+
+            # tSNE plot 2
+            plt.figure(figsize=(12, 10))  # You can adjust the dimensions as needed
+
+            for i,layer in enumerate([x_test,h1_blowup,h2_blowup,y_blowup]):
+                plt.subplot(2, 2, i+1)
+                visualize_clusters(layer,'Layer '+str(i), colors=t_test, perplexity=50)
+            cmap = plt.get_cmap('tab10') 
+            legend_handles = [plt.Line2D([0], [0], marker='o', color='w', label=str(i),
+                            markerfacecolor=cmap(i), markersize=10) for i in range(10)]
+            plt.legend(handles=legend_handles, title="Classes", bbox_to_anchor=(1.05, 1), loc='upper left')
+            plt.suptitle('t-SNE Visualization of Clusters\n Training initialization: '+args.train_init+'\nAccuracy: '+str(100*accuracy.item())+'%\nMSE: '+str(error.item()))
+            plt.subplots_adjust(top=0.85, bottom=0.05, left=0.05, right=0.9, hspace=0.2, wspace=0.05)
+            plt.savefig(args.output_dir+'/clusters2.png', bbox_inches='tight')
+            print("tSNE plot time: ",int((time.time()-tic)/60)," minutes")
