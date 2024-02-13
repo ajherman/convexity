@@ -154,22 +154,37 @@ n_mem = 10
 # y_mem = (torch.rand(n_mem, output_size)<0.5).float()
 
 n_steps=200
-x_trigger = torch.rand(n_mem,input_size) # Input that will cause multi-state attractor
 
+# Trigger inputs
+x_B_trigger = torch.rand(n_mem,input_size) # Input that will cause multi-state attractor
+x_C_trigger = torch.rand(n_mem,input_size)
+
+# Start state
 y_A_mem = torch.eye(output_size)
-permuted_indices = torch.randperm(output_size) # Identity
-y_B_mem = torch.eye(output_size)[permuted_indices] # Permuted identity
 
-lr0,lr1,lr2,lr3 = 0.05,-0.05,-0.005,0.005
+# Final targets
+permuted_indices_B = torch.randperm(output_size) # Identity
+y_B_mem = torch.eye(output_size)[permuted_indices_B] # Permuted identity
+
+permuted_indices_C = torch.randperm(output_size) # Identity
+y_C_mem = torch.eye(output_size)[permuted_indices_C] # Permuted identity
+
+lr0,lr1,lr2,lr3 = 0.02,-0.02,-0.002,0.002
 
 for itr in range(n_steps):
     w1_update, w2_update, w3_update, b1_update, b2_update, b3_update = [], [], [], [], [], []
 
-    x.data = x_trigger.data.clone().detach()
+    if itr%2==0:
+        x.data = x_B_trigger.data.clone().detach()
+        target = y_B_mem.clone().detach()
+
+    else:
+        x.data = x_C_trigger.data.clone().detach()
+        target = y_C_mem.clone().detach()
+
     h1.data.uniform_(0,1)
     h2.data.uniform_(0,1)
     y.data = y_A_mem.clone().detach()
-    target = y_B_mem.clone().detach()
 
 
     # Clamp on target to deepen (should we re-initialize h1, h2?)
