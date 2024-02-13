@@ -160,82 +160,7 @@ x_mem = torch.randn(n_mem,input_size) # Memories to store
 y_mem = torch.eye(output_size)
 for itr in range(n_steps):
 
-    # h1.data.uniform_(0,1)
-    # h2.data.uniform_(0,1)
-    # y.data.uniform_(0,1)
-
-    # # Settle energy from random state
-    # free_steps = 100
-    # h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
-    # # Get l2 distance between free states and memory states. Try all layers as one tensor
-    # l2 = (h1_free-h1_mem).pow(2).sum(dim=1) + (h2_free-h2_mem).pow(2).sum(dim=1) + (y_free-y_mem).pow(2).sum(dim=1)
-    # # l2 = (h1_free-h1_mem).pow(2).sum() + (h2_free-h2_mem).pow(2).sum() + (y_free-y_mem).pow(2).sum()
-    # min_index = torch.argmin(l2)
-    # print("L2 distance: ", torch.min(l2))
-    # print("Index of min element: ", min_index)
-
-    # # Update the weights
-    # alpha=20.0
-    # model.w1.weight.data += learning_rate * (w1_update - alpha*x.t() @ h1_free)
-    # model.w2.weight.data += learning_rate * (w2_update - alpha*h1_free.t() @ h2_free)
-    # model.w3.weight.data += learning_rate * (w3_update - alpha*h2_free.t() @ y_free)
-    # model.b1.weight.data += learning_rate * (b1_update - alpha*h1_free.sum(0))
-    # model.b2.weight.data += learning_rate * (b2_update - alpha*h2_free.sum(0))
-    # model.b3.weight.data += learning_rate * (b3_update - alpha*y_free.sum(0))
-
-
-# #########################################################
-
-#     x.data = x_mem.data.clone().detach()
-#     h1.data = h1_mem.data.clone().detach()
-#     h2.data = h2_mem.data.clone().detach()
-#     y.data = y_mem.data.clone().detach()
-
-
-#     # Settle energy from memory state
-#     free_steps = 200
-#     h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
-
-#     # Print L2 distances
-#     l2 = (h1_free-h1_mem).pow(2).sum(dim=1) + (h2_free-h2_mem).pow(2).sum(dim=1) + (y_free-y_mem).pow(2).sum(dim=1)
-#     print("L2 distance: ", l2)
-#     print("Index of min element: ", torch.argmin(l2))
-
-#     # Update the weights
-#     alpha=1.0
-#     model.w1.weight.data += learning_rate * (x_mem.t()@h1_mem - alpha*x_mem.t() @ h1_free)
-#     model.w2.weight.data += learning_rate * (h1_mem.t()@h2_mem - alpha*h1_free.t() @ h2_free)
-#     model.w3.weight.data += learning_rate * (h2_mem.t()@y_mem - alpha*h2_free.t() @ y_free)
-#     model.b1.weight.data += learning_rate * (h1_mem - alpha*h1_free).sum(0)
-#     model.b2.weight.data += learning_rate * (h2_mem - alpha*h2_free).sum(0)
-#     model.b3.weight.data += learning_rate * (y_mem - alpha*y_free).sum(0)
-
-#     if _%10 == 0:
-#         x.data = x_mem.data.clone().detach()#+0.1*torch.randn_like(x_mem)
-#         h1.data = h1_mem.data.clone().detach()+0.5*torch.randn_like(h1_mem)
-#         h2.data = h2_mem.data.clone().detach()+0.5*torch.randn_like(h2_mem)
-#         y.data = y_mem.data.clone().detach()+0.5*torch.randn_like(y_mem)
-
-#         h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
-
-#         # Calculate the L2 distance between each row of state and each memory
-#         distances = torch.cdist(torch.cat([h1_free, h2_free, y_free],dim=1), torch.cat([h1_mem, h2_mem, y_mem],dim=1), p=2)
-
-#         # Print the distances in a grid
-#         grid = []
-#         for i in range(distances.shape[0]):
-#             row = []
-#             for j in range(distances.shape[1]):
-#                 row.append(distances[i, j])
-#             grid.append(row)
-
-#         print(tabulate(grid, headers=[f"Memory {j+1}" for j in range(distances.shape[1])], tablefmt="grid"))
-
-
-
-#########################################################
-
-    lr1,lr2 = 0.05,0.05
+    lr1,lr2 = 0.05,0.005
 
     x.data = x_trigger.data.clone().detach()
     h1.data.uniform_(0,1)
@@ -246,6 +171,14 @@ for itr in range(n_steps):
     # Settle energy from memory state
     free_steps = 100
     
+    # Init update tensors
+    w1_update = torch.zeros_like(model.w1.weight.data)
+    w2_update = torch.zeros_like(model.w2.weight.data)
+    w3_update = torch.zeros_like(model.w3.weight.data)
+    b1_update = torch.zeros_like(model.b1.weight.data)
+    b2_update = torch.zeros_like(model.b2.weight.data)
+    b3_update = torch.zeros_like(model.b3.weight.data)
+
     #############################
     # Create multistate attractor
     #############################
@@ -253,7 +186,8 @@ for itr in range(n_steps):
     # Find the state we want to deepen (target clamped)
     h1_clamp, h2_clamp, y_clamp, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,target,print_energy=False)
 
-    # Find contrast state
+    # Find contrast state by settling without clamping target
+    y.data = target.data.clone().detach()
     h1_free, h2_free, y_free, energies = minimizeEnergy(model,free_steps,optimizer,x,h1,h2,y,print_energy=False)
 
     if itr%10 == 0:
@@ -265,12 +199,19 @@ for itr in range(n_steps):
     # Update the weights
     alpha=1.0
     learning_rate = lr1 #0.05
-    model.w1.weight.data += learning_rate * (x_mem.t()@h1_clamp - alpha*x_mem.t() @ h1_free)
-    model.w2.weight.data += learning_rate * (h1_clamp.t()@h2_clamp - alpha*h1_free.t() @ h2_free)
-    model.w3.weight.data += learning_rate * (h2_clamp.t()@y_mem - alpha*h2_free.t() @ y_free)
-    model.b1.weight.data += learning_rate * (h1_clamp - alpha*h1_free).sum(0)
-    model.b2.weight.data += learning_rate * (h2_clamp - alpha*h2_free).sum(0)
-    model.b3.weight.data += learning_rate * (y_clamp - alpha*y_free).sum(0)
+    # model.w1.weight.data += learning_rate * (x_mem.t()@h1_clamp - alpha*x_mem.t() @ h1_free)
+    # model.w2.weight.data += learning_rate * (h1_clamp.t()@h2_clamp - alpha*h1_free.t() @ h2_free)
+    # model.w3.weight.data += learning_rate * (h2_clamp.t()@y_mem - alpha*h2_free.t() @ y_free)
+    # model.b1.weight.data += learning_rate * (h1_clamp - alpha*h1_free).sum(0)
+    # model.b2.weight.data += learning_rate * (h2_clamp - alpha*h2_free).sum(0)
+    # model.b3.weight.data += learning_rate * (y_clamp - alpha*y_free).sum(0)
+
+    w1_update += learning_rate * (x_mem.t()@h1_clamp - alpha*x_mem.t() @ h1_free)
+    w2_update += learning_rate * (h1_clamp.t()@h2_clamp - alpha*h1_free.t() @ h2_free)
+    w3_update += learning_rate * (h2_clamp.t()@y_mem - alpha*h2_free.t() @ y_free)
+    b1_update += learning_rate * (h1_clamp - alpha*h1_free).sum(0)
+    b2_update += learning_rate * (h2_clamp - alpha*h2_free).sum(0)
+    b3_update += learning_rate * (y_clamp - alpha*y_free).sum(0)
 
     ##################
     # Regular training
@@ -297,28 +238,35 @@ for itr in range(n_steps):
     h1_nudge, h2_nudge, y_nudge, energies2 = minimizeEnergy(model,nudge_steps,optimizer,x,h1,h2,y,target=target,print_energy=False)
 
     # Calculate the weight updates
-    w1_update = (x.t() @ h1_nudge - x.t() @ h1_free)/(beta*batch_dim)
-    w2_update = (h1_nudge.t() @ h2_nudge - h1_free.t() @ h2_free)/(beta*batch_dim)
-    w3_update = (h2_nudge.t() @ y_nudge - h2_free.t() @ y_free)/(beta*batch_dim)
-    b1_update = (h1_nudge - h1_free).sum(0)/(beta*batch_dim)
-    b2_update = (h2_nudge - h2_free).sum(0)/(beta*batch_dim)
-    b3_update = (y_nudge - y_free).sum(0)/(beta*batch_dim)
-    
-    # Update the weights
     learning_rate = lr2
-    model.w1.weight.data += learning_rate * w1_update
-    model.w2.weight.data += learning_rate * w2_update
-    model.w3.weight.data += learning_rate * w3_update
-    model.b1.weight.data += learning_rate * b1_update
-    model.b2.weight.data += learning_rate * b2_update
-    model.b3.weight.data += learning_rate * b3_update
+    w1_update += lr2*(x.t() @ h1_nudge - x.t() @ h1_free)/beta
+    w2_update += lr2*(h1_nudge.t() @ h2_nudge - h1_free.t() @ h2_free)/beta
+    w3_update += lr2*(h2_nudge.t() @ y_nudge - h2_free.t() @ y_free)/beta
+    b1_update += lr2*(h1_nudge - h1_free).sum(0)/beta
+    b2_update += lr2*(h2_nudge - h2_free).sum(0)/beta
+    b3_update += lr2*(y_nudge - y_free).sum(0)/beta
+    
+    # # Update the weights
+    # model.w1.weight.data += learning_rate * w1_update
+    # model.w2.weight.data += learning_rate * w2_update
+    # model.w3.weight.data += learning_rate * w3_update
+    # model.b1.weight.data += learning_rate * b1_update
+    # model.b2.weight.data += learning_rate * b2_update
+    # model.b3.weight.data += learning_rate * b3_update
+    # Update the weights
+    model.w1.weight.data += w1_update
+    model.w2.weight.data += w2_update
+    model.w3.weight.data += w3_update
+    model.b1.weight.data += b1_update
+    model.b2.weight.data += b2_update
+    model.b3.weight.data += b3_update
 
 
     if itr%20 == 0:
 
         # Test whether starting from random state with trigger input leads to nearest attractor
         # Settle energy from memory state
-        x.data = x_mem.data.clone().detach()
+        x.data.zero_() #= x_mem.data.clone().detach()
         h1.data.uniform_(0,1)
         h2.data.uniform_(0,1)
         y.data.uniform_(0,1)
