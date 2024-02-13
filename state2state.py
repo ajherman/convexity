@@ -153,41 +153,39 @@ n_mem = 10
 # h2_mem = (torch.rand(n_mem, hidden2_size)<0.5).float()
 # y_mem = (torch.rand(n_mem, output_size)<0.5).float()
 
-n_steps=200
+n_steps=1000
+n_triggers = 10
 
 # Trigger inputs
-x_B_trigger = torch.rand(n_mem,input_size) # Input that will cause multi-state attractor
-x_C_trigger = torch.rand(n_mem,input_size)
+x_trigger = [torch.rand(n_mem,input_size) for i in range(n_triggers)]
 
-# Start state
+
+# Start state for output layer
 y_A_mem = torch.eye(output_size)
 
 # Final targets
-permuted_indices_B = torch.randperm(output_size) # Identity
-y_B_mem = torch.eye(output_size)[permuted_indices_B] # Permuted identity
-
-permuted_indices_C = torch.randperm(output_size) # Identity
-y_C_mem = torch.eye(output_size)[permuted_indices_C] # Permuted identity
+y_mem = []
+for i in range(n_triggers):
+    permuted_indices = torch.randperm(output_size)
+    y_mem.append(torch.eye(output_size)[permuted_indices])
 
 lr0,lr1,lr2,lr3 = 0.02,-0.02,-0.002,0.002
 
 for itr in range(n_steps):
     w1_update, w2_update, w3_update, b1_update, b2_update, b3_update = [], [], [], [], [], []
 
-    if itr%2==0:
-        x.data = x_B_trigger.data.clone().detach()
-        target = y_B_mem.clone().detach()
+    # Pick which input to use as the trigger
+    i = itr%n_triggers
+    x.data = x_trigger[i].clone().detach()
+    target = y_mem[i].clone().detach()
 
-    else:
-        x.data = x_C_trigger.data.clone().detach()
-        target = y_C_mem.clone().detach()
-
+    # Init internal state
     h1.data.uniform_(0,1)
     h2.data.uniform_(0,1)
-    y.data = y_A_mem.clone().detach()
+    y.data = y_A_mem.clone().detach() # Also init output layer to fixed state
 
 
-    # Clamp on target to deepen (should we re-initialize h1, h2?)
+    # Clamp on target to deepen
     h1_clamp, h2_clamp, y_clamp, energies = minimizeEnergy(model,100,optimizer,x,h1,h2,target,print_energy=False)
     w1_update.append(x.t()@h1_clamp)    
     w2_update.append(h1_clamp.t()@h2_clamp)
@@ -247,28 +245,37 @@ for itr in range(n_steps):
 
     if itr%10 == 0:
 
+        print("Iteration: ", itr)
+        print("================================================================")
+
         # Test whether starting from random state with trigger input leads to nearest attractor
         # Settle energy from memory state
         # x.data = torch.rand(n_mem,input_size) # This disables the trigger
-
+        # h1.data.uniform_(0,1)
+        # h2.data.uniform_(0,1)
         h1.data.uniform_(0,1)
         h2.data.uniform_(0,1)
-        y.data = y_A_mem.clone().detach()
+        for i in range(n_triggers):
+            x.data = x_trigger[i].clone().detach()
+            h1.data.uniform_(0,1)
+            h2.data.uniform_(0,1)
+            y.data = y_A_mem.clone().detach() # State state
+            target = y_mem[i].clone().detach()
 
-        h1_free, h2_free, y_free, energies = minimizeEnergy(model,100,optimizer,x,h1,h2,y,print_energy=False)
-        # Calculate the L2 distance between each row of state and each memory
+            h1_free, h2_free, y_free, energies = minimizeEnergy(model,100,optimizer,x,h1,h2,y,print_energy=False)
+            # Calculate the L2 distance between each row of state and each memory
 
-        distances = torch.cdist(y_free, target, p=2)
+            distances = torch.cdist(y_free, target, p=2)
 
-        # Print the distances in a grid
-        grid = []
-        for i in range(distances.shape[0]):
-            row = []
-            for j in range(distances.shape[1]):
-                row.append(distances[i, j])
-            grid.append(row)
+            # Print the distances in a grid
+            grid = []
+            for i in range(distances.shape[0]):
+                row = []
+                for j in range(distances.shape[1]):
+                    row.append(distances[i, j])
+                grid.append(row)
 
-        print(tabulate(grid, headers=[f"Memory {j+1}" for j in range(distances.shape[1])], tablefmt="grid"))
+            print(tabulate(grid, headers=[f"Memory {j+1}" for j in range(distances.shape[1])], tablefmt="grid"))
 
 
 
