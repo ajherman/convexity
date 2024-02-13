@@ -31,7 +31,6 @@ class HopfieldEnergy(nn.Module):
 
         # L2 penalty
         l2 = h1.pow(2).sum(dim=1) + h2.pow(2).sum(dim=1) + y.pow(2).sum(dim=1)
-        # l2 = h1.pow(2).sum() + h2.pow(2).sum() + y.pow(2).sum() # Old version
 
         # Total energy
         E = energy1 + energy2 + energy3 + self.lam*0.5*l2
