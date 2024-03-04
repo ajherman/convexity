@@ -122,7 +122,7 @@ print("Lambda: ",lam)
 print("\n")
 mr = 0.5
 # Initialize the internal state variables
-batch_dim = 10
+batch_dim = output_size
 x = torch.zeros(batch_dim,input_size)
 h1 = torch.zeros(batch_dim, hidden1_size, requires_grad=True)
 h2 = torch.zeros(batch_dim, hidden2_size, requires_grad=True)
@@ -135,7 +135,6 @@ optimizer = optim.SGD([h1, h2, y], lr=mr)
 ###############
 # Training loop
 ###############
-n_mem = 10
 # x_mem = torch.zeros(n_mem,input_size) # torch.rand(n_mem,input_size)
 
 # mask = torch.rand(n_mem, hidden1_size) < 0.2
@@ -152,16 +151,19 @@ n_mem = 10
 # h1_mem = (torch.rand(n_mem, hidden1_size)<0.5).float()
 # h2_mem = (torch.rand(n_mem, hidden2_size)<0.5).float()
 # y_mem = (torch.rand(n_mem, output_size)<0.5).float()
-
+n_mem = output_size
 n_steps=1000
-n_triggers = 10
+n_triggers = 1
 
-# Trigger inputs
-x_trigger = [torch.rand(n_mem,input_size) for i in range(n_triggers)]
+# Trigger inputs (should these be repreated matrices?)
+x_trigger = [torch.rand(1, input_size).repeat(n_mem, 1) for i in range(n_triggers)]
+# x_trigger = [torch.rand(n_mem,input_size) for i in range(n_triggers)]
 
 
 # Start state for output layer
 y_A_mem = torch.eye(output_size)
+
+
 
 # Final targets
 y_mem = []
@@ -184,7 +186,6 @@ for itr in range(n_steps):
     h2.data.uniform_(0,1)
     y.data = y_A_mem.clone().detach() # Also init output layer to fixed state
 
-
     # Clamp on target to deepen
     h1_clamp, h2_clamp, y_clamp, energies = minimizeEnergy(model,100,optimizer,x,h1,h2,target,print_energy=False)
     w1_update.append(x.t()@h1_clamp)    
@@ -203,7 +204,6 @@ for itr in range(n_steps):
     b1_update.append(h1_free.sum(0))
     b2_update.append(h2_free.sum(0))
     b3_update.append(y_free.sum(0))
-
 
     h1.data.uniform_(0,1)
     h2.data.uniform_(0,1)
