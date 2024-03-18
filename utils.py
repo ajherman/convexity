@@ -20,10 +20,10 @@ class HopfieldEnergy(nn.Module):
         self.w3 = nn.Bilinear(hidden2_size, output_size, 1, bias=False)
         self.b3 = nn.Linear(output_size, 1, bias=False)
 
-        self.beta = beta
+        # self.beta = beta
         self.lam = lam
 
-    def forward(self, x, h1, h2, y, target=None):
+    def forward(self, x, h1, h2, y, target=None, beta=None):
         # Hopfield energy (layered)
         energy1 = (-self.w1(x, h1) - self.b1(h1)).squeeze()
         energy2 = (-self.w2(h1, h2) - self.b2(h2)).squeeze()
@@ -36,8 +36,14 @@ class HopfieldEnergy(nn.Module):
         E = energy1 + energy2 + energy3 + self.lam*0.5*l2
 
         # Nudge energy
+        # print(E.shape)
         if target is not None:
-            F = self.beta*0.5*(y-target).pow(2).sum(dim=1) #self.F(y, target)
+            F = (beta*0.5*(y-target).pow(2)).sum(dim=1) #self.F(y, target)
+            # print(beta.shape)
+            # print(y.shape)
+            # print(target.shape)
+            # print(F.shape)
+            # assert(0)
             E += F
 
         return E.sum() 

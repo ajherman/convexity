@@ -155,6 +155,12 @@ n_mem = output_size
 n_steps=1000
 n_triggers = 1
 
+sequences = [(i,j) for i in range(n_mem) for j in range(n_mem) if i!=j]
+labels = [np.random.choice(n_mem) for i in range(len(sequences))]
+print(sequences)
+print(labels)
+assert(0)
+
 # Trigger inputs (should these be repreated matrices?)
 x_trigger = [torch.rand(1, input_size).repeat(n_mem, 1) for i in range(n_triggers)]
 # x_trigger = [torch.rand(n_mem,input_size) for i in range(n_triggers)]
