@@ -38,7 +38,7 @@ class HopfieldEnergy(nn.Module):
         # Nudge energy
         # print(E.shape)
         if target is not None:
-            F = (beta*0.5*(y-target).pow(2)).sum(dim=1) #self.F(y, target)
+            F = (beta*0.5*(target-y).pow(2)).sum(dim=1) #self.F(y, target)
             # print(beta.shape)
             # print(y.shape)
             # print(target.shape)
